@@ -202,7 +202,7 @@ packages = {
             "-Dtests=disabled",
         ],
     ),
-    "openbmc/phosphor-dbus-interfaces": PackageDef(
+    "ibm-openbmc/phosphor-dbus-interfaces": PackageDef(
         depends=["openbmc/sdbusplus"],
         build_type="meson",
         config_flags=["-Dgenerate_md=false"],
@@ -210,7 +210,7 @@ packages = {
     "openbmc/phosphor-logging": PackageDef(
         depends=[
             "USCiLab/cereal",
-            "openbmc/phosphor-dbus-interfaces",
+            "ibm-openbmc/phosphor-dbus-interfaces",
             "openbmc/sdbusplus",
             "openbmc/sdeventplus",
         ],
@@ -231,12 +231,12 @@ packages = {
             "-Dtests=disabled",
         ],
     ),
-    "openbmc/pldm": PackageDef(
+    "ibm-openbmc/pldm": PackageDef(
         depends=[
             "CLIUtils/CLI11",
             "boost",
             "nlohmann/json",
-            "openbmc/phosphor-dbus-interfaces",
+            "ibm-openbmc/phosphor-dbus-interfaces",
             "openbmc/phosphor-logging",
             "openbmc/sdbusplus",
             "openbmc/sdeventplus",
