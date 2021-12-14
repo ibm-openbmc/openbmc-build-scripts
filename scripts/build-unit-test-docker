@@ -204,6 +204,7 @@ packages = {
     ),
     "ibm-openbmc/phosphor-dbus-interfaces": PackageDef(
         depends=["openbmc/sdbusplus"],
+        rev="1020",
         build_type="meson",
         config_flags=[
             "-Ddata_com_ibm=true",
@@ -246,6 +247,7 @@ packages = {
             "openbmc/sdeventplus",
         ],
         build_type="meson",
+        rev="1020",
         config_flags=[
             "-Dlibpldm-only=enabled",
             "-Doem-ibm=enabled",
