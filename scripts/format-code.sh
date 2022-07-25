@@ -51,7 +51,8 @@ ESLINT_COMMAND="eslint . ${ESLINT_IGNORE} ${ESLINT_RC} \
 # Print eslint command
 echo "$ESLINT_COMMAND"
 # Run eslint
-$ESLINT_COMMAND
+# TODO - enable eslint once we can pull fixes in from upstream
+# $ESLINT_COMMAND
 
 if [[ -f "setup.cfg" ]]; then
   pycodestyle --show-source --exclude=subprojects .
