@@ -6,7 +6,6 @@
 #   DOCKER_IMG_NAME:  <optional, the name of the docker image to generate>
 #                     default is openbmc/ubuntu-rootfs-size
 #   DISTRO:           <optional, the distro to build a docker image against>
-#                     default is ubuntu:bionic
 
 set -uo pipefail
 
@@ -21,6 +20,9 @@ case ${ARCH} in
         ;;
     "x86_64")
         DOCKER_BASE=""
+        ;;
+    "aarch64")
+        DOCKER_BASE="arm64v8/"
         ;;
     *)
         echo "Unsupported system architecture(${ARCH}) found for docker image"

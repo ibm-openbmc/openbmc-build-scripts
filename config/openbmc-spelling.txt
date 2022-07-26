@@ -751,6 +751,7 @@ informations->information
 informtion->information
 infromation->information
 ingore->ignore
+inheritence->inheritance
 inital->initial
 initalized->initialized
 initalised->initialized
@@ -1111,6 +1112,7 @@ progamming->programming
 progams->programs
 progess->progress
 programable->programmable
+programatic->programmatic
 programers->programmers
 programm->program
 programms->programs

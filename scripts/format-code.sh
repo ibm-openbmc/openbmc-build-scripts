@@ -10,6 +10,7 @@
 # Input parmameter must be full path to git repo to scan
 
 DIR=$1
+WORKSPACE=$PWD
 
 set -e
 
@@ -26,6 +27,32 @@ codespell --builtin clear,rare,en-GB_to_en-US -d --count "${DIR}"/.git/COMMIT_ED
 cd "${DIR}"
 
 echo "Formatting code under $DIR/"
+
+if [[ -f ".eslintignore" ]]; then
+  ESLINT_IGNORE="--ignore-path .eslintignore"
+elif [[ -f ".gitignore" ]]; then
+  ESLINT_IGNORE="--ignore-path .gitignore"
+fi
+
+# Get the eslint configuration from the repository
+if [[ -f ".eslintrc.json" ]]; then
+    echo "Running the json validator on the repo using it's config > "
+    ESLINT_RC="-c .eslintrc.json"
+else
+    echo "Running the json validator on the repo using the global config"
+    ESLINT_RC="--no-eslintrc -c ${WORKSPACE}/eslint-global-config.json"
+fi
+
+ESLINT_COMMAND="eslint . ${ESLINT_IGNORE} ${ESLINT_RC} \
+               --ext .json --format=json \
+               --resolve-plugins-relative-to /usr/local/lib/node_modules \
+               --no-error-on-unmatched-pattern"
+
+# Print eslint command
+echo "$ESLINT_COMMAND"
+# Run eslint
+# TODO - enable eslint once we can pull fixes in from upstream
+# $ESLINT_COMMAND
 
 if [[ -f "setup.cfg" ]]; then
   pycodestyle --show-source --exclude=subprojects .
@@ -46,7 +73,7 @@ fi
 shell_scripts="$(git ls-files | xargs -n1 file -0 | \
                  grep -a "shell script" | cut -d '' -f 1)"
 for script in ${shell_scripts}; do
-  shellcheck -x "${script}" || ${shellcheck_allowfail}
+  shellcheck --color=never -x "${script}" || ${shellcheck_allowfail}
 done
 
 # Allow called scripts to know which clang format we are using

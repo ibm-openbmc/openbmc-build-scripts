@@ -6,7 +6,6 @@
 #   DOCKER_IMG_NAME:  <optional, the name of the docker image to generate>
 #                     default is openbmc/ubuntu-unit-test
 #   DISTRO:           <optional, the distro to build a docker image against>
-#                     default is ubuntu:impish
 #   FORCE_DOCKER_BUILD: <optional, a non-zero value with force all Docker
 #                     images to be rebuilt rather than reusing caches.>
 #   BUILD_URL:        <optional, used to detect running under CI context
@@ -99,6 +98,10 @@ packages = {
         build_type="cmake",
         config_flags=["-DBUILD_TESTING=OFF", "-DCATCH_INSTALL_DOCS=OFF"],
     ),
+    "danmar/cppcheck": PackageDef(
+        rev="27578e9c4c1f90c62b6938867735a054082e178e",
+        build_type="cmake",
+    ),
     "CLIUtils/CLI11": PackageDef(
         rev="v1.9.1",
         build_type="cmake",
@@ -109,7 +112,7 @@ packages = {
         ],
     ),
     "fmtlib/fmt": PackageDef(
-        rev="7.1.3",
+        rev="8.1.1",
         build_type="cmake",
         config_flags=[
             "-DFMT_DOC=OFF",
@@ -124,16 +127,16 @@ packages = {
             f"cp include/function2/function2.hpp {prefix}/include/function2/",
         ],
     ),
-    # Snapshot from 2021-05-13
+    # Release 2021-06-12
     "google/googletest": PackageDef(
-        rev="662fe38e44900c007eccb65a5d2ea19df7bd520e",
+        rev="9e712372214d75bb30ec2847a44bf124d48096f3",
         build_type="cmake",
         config_env=["CXXFLAGS=-std=c++20"],
         config_flags=["-DTHREADS_PREFER_PTHREAD_FLAG=ON"],
     ),
     # Release 2020-08-06
     "nlohmann/json": PackageDef(
-        rev="v3.9.1",
+        rev="v3.10.4",
         build_type="cmake",
         config_flags=["-DJSON_BuildTests=OFF"],
         custom_post_install=[
@@ -159,13 +162,6 @@ packages = {
         rev="LibVNCServer-0.9.13",
         build_type="cmake",
     ),
-    "martinmoene/span-lite": PackageDef(
-        rev="v0.9.2",
-        build_type="cmake",
-        config_flags=[
-            "-DSPAN_LITE_OPT_BUILD_TESTS=OFF",
-        ],
-    ),
     # version from meta-openembedded/meta-oe/recipes-support/libtinyxml2/libtinyxml2_8.0.0.bb
     "leethomason/tinyxml2": PackageDef(
         rev="8.0.0",
@@ -173,7 +169,7 @@ packages = {
     ),
     # version from /meta-openembedded/meta-oe/recipes-devtools/boost-url/boost-url_git.bb
     "CPPAlliance/url": PackageDef(
-        rev="4f712ed69a04a344957d22efa5dc111b415b3aff",
+        rev="d740a92d38e3a8f4d5b2153f53b82f1c98e312ab",
         build_type="custom",
         build_steps=[f"cp -a include/** {prefix}/include/"],
     ),
@@ -186,11 +182,16 @@ packages = {
             "-Dvalijson_INSTALL_HEADERS=1",
         ],
     ),
-    # version from meta-openembedded/meta-oe/recipes-devtools/nlohmann-fifo/nlohmann-fifo_git.bb
-    "nlohmann/fifo_map": PackageDef(
-        rev="0dfbf5dacbb15a32c43f912a7e66a54aae39d0f9",
-        build_type="custom",
-        build_steps=[f"cp src/fifo_map.hpp {prefix}/include/"],
+    # version from meta-openembedded/meta-oe/recipes-devtools/unifex/unifex_git.bb
+    "facebookexperimental/libunifex": PackageDef(
+        rev="9df21c58d34ce8a1cd3b15c3a7347495e29417a0",
+        build_type="cmake",
+        config_flags=[
+            "-DBUILD_SHARED_LIBS=ON",
+            "-DBUILD_TESTING=OFF",
+            "-DCMAKE_CXX_STANDARD=20",
+            "-DUNIFEX_BUILD_EXAMPLES=OFF",
+        ],
     ),
     "open-power/pdbg": PackageDef(build_type="autoconf"),
     "openbmc/gpioplus": PackageDef(
@@ -203,9 +204,9 @@ packages = {
     ),
     "ibm-openbmc/phosphor-dbus-interfaces": PackageDef(
         depends=["openbmc/sdbusplus"],
-        rev="1020.99",
         build_type="meson",
         config_flags=[
+            "-Dgenerate_md=false",
             "-Ddata_com_ibm=true",
             "-Ddata_org_open_power=true",
         ],
@@ -213,14 +214,13 @@ packages = {
     "openbmc/phosphor-logging": PackageDef(
         depends=[
             "USCiLab/cereal",
-            "nlohmann/fifo_map",
             "ibm-openbmc/phosphor-dbus-interfaces",
             "openbmc/sdbusplus",
             "openbmc/sdeventplus",
         ],
         build_type="meson",
         config_flags=[
-            f"-Dyaml_dir={prefix}/share/phosphor-dbus-yaml/yaml",
+            f"-Dyamldir={prefix}/share/phosphor-dbus-yaml/yaml",
         ],
     ),
     "openbmc/phosphor-objmgr": PackageDef(
@@ -246,7 +246,6 @@ packages = {
             "openbmc/sdeventplus",
         ],
         build_type="meson",
-        rev="1020.99",
         config_flags=[
             "-Dlibpldm-only=enabled",
             "-Doem-ibm=enabled",
@@ -254,6 +253,9 @@ packages = {
         ],
     ),
     "openbmc/sdbusplus": PackageDef(
+        depends=[
+            "facebookexperimental/libunifex",
+        ],
         build_type="meson",
         custom_post_dl=[
             "cd tools",
@@ -274,7 +276,7 @@ packages = {
         ],
     ),
     "openbmc/stdplus": PackageDef(
-        depends=["fmtlib/fmt", "martinmoene/span-lite"],
+        depends=["fmtlib/fmt", "google/googletest"],
         build_type="meson",
         config_flags=[
             "-Dexamples=false",
@@ -644,7 +646,7 @@ class Docker:
 docker_image_name = os.environ.get("DOCKER_IMAGE_NAME", "openbmc/ubuntu-unit-test")
 force_build = os.environ.get("FORCE_DOCKER_BUILD")
 is_automated_ci_build = os.environ.get("BUILD_URL", False)
-distro = os.environ.get("DISTRO", "ubuntu:impish")
+distro = os.environ.get("DISTRO", "ubuntu:jammy")
 branch = os.environ.get("BRANCH", "master")
 ubuntu_mirror = os.environ.get("UBUNTU_MIRROR")
 http_proxy = os.environ.get("http_proxy")
@@ -658,12 +660,20 @@ homedir = os.environ.get("HOME", "/root")
 gid = os.getgid()
 uid = os.getuid()
 
+# Use well-known constants if user is root
+if username == "root":
+    homedir = "/root"
+    gid = 0
+    uid = 0
+
 # Determine the architecture for Docker.
 arch = uname("-m").strip()
 if arch == "ppc64le":
     docker_base = "ppc64le/"
 elif arch == "x86_64":
     docker_base = ""
+elif arch == "aarch64":
+    docker_base = "arm64v8/"
 else:
     print(
         f"Unsupported system architecture({arch}) found for docker image",
@@ -710,7 +720,7 @@ FROM {docker_base}{distro}
 
 ENV DEBIAN_FRONTEND noninteractive
 
-ENV PYTHONPATH "/usr/local/lib/python3.8/site-packages/"
+ENV PYTHONPATH "/usr/local/lib/python3.10/site-packages/"
 
 # Sometimes the ubuntu key expires and we need a way to force an execution
 # of the apt-get commands for the dbgsym-keyring.  When this happens we see
@@ -771,10 +781,10 @@ RUN apt-get update && apt-get dist-upgrade -yy && apt-get install -yy \
     git \
     dbus \
     iputils-ping \
-    clang-13 \
-    clang-format-13 \
-    clang-tidy-13 \
-    clang-tools-13 \
+    clang-14 \
+    clang-format-14 \
+    clang-tidy-14 \
+    clang-tools-14 \
     shellcheck \
     npm \
     iproute2 \
@@ -791,18 +801,24 @@ RUN apt-get update && apt-get dist-upgrade -yy && apt-get install -yy \
     libldap2-dev \
     libprotobuf-dev \
     liburing-dev \
-    liburing1-dbgsym \
+    liburing2-dbgsym \
     libperlio-gzip-perl \
     libjson-perl \
     protobuf-compiler \
     libgpiod-dev \
     device-tree-compiler \
-    cppcheck \
     libpciaccess-dev \
     libmimetic-dev \
     libxml2-utils \
     libxml-simple-perl \
-    rsync
+    rsync \
+    libcryptsetup-dev
+
+# Apply autoconf-archive-v2022.02.11 file ax_cxx_compile_stdcxx for C++20.
+RUN curl "http://git.savannah.gnu.org/gitweb/?p=autoconf-archive.git;a=blob_plain;f=m4/ax_cxx_compile_stdcxx.m4;hb=3311b6bdeff883c6a13952594a9dcb60bce6ba80" \
+  > /usr/share/aclocal/ax_cxx_compile_stdcxx.m4
+
+RUN npm install -g eslint@latest eslint-plugin-json@latest
 
 RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 11 \
   --slave /usr/bin/g++ g++ /usr/bin/g++-11 \
@@ -810,12 +826,12 @@ RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 11 \
   --slave /usr/bin/gcov-dump gcov-dump /usr/bin/gcov-dump-11 \
   --slave /usr/bin/gcov-tool gcov-tool /usr/bin/gcov-tool-11
 
-RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-13 1000 \
-  --slave /usr/bin/clang++ clang++ /usr/bin/clang++-13 \
-  --slave /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-13 \
-  --slave /usr/bin/clang-format clang-format /usr/bin/clang-format-13 \
-  --slave /usr/bin/run-clang-tidy run-clang-tidy.py /usr/bin/run-clang-tidy-13 \
-  --slave /usr/bin/scan-build scan-build /usr/bin/scan-build-13
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-14 1000 \
+  --slave /usr/bin/clang++ clang++ /usr/bin/clang++-14 \
+  --slave /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-14 \
+  --slave /usr/bin/clang-format clang-format /usr/bin/clang-format-14 \
+  --slave /usr/bin/run-clang-tidy run-clang-tidy.py /usr/bin/run-clang-tidy-14 \
+  --slave /usr/bin/scan-build scan-build /usr/bin/scan-build-14
 
 """
 
@@ -832,9 +848,10 @@ dockerfile_base += f"""
 RUN pip3 install inflection
 RUN pip3 install pycodestyle
 RUN pip3 install jsonschema
-RUN pip3 install meson==0.58.0
+RUN pip3 install meson==0.61.3
 RUN pip3 install protobuf
 RUN pip3 install codespell
+RUN pip3 install requests
 """
 
 # Build the base and stage docker images.
@@ -854,7 +871,7 @@ FROM {docker_base_img_name}
 RUN echo '{Package.depcache()}' > /tmp/depcache
 
 # Final configuration for the workspace
-RUN grep -q {gid} /etc/group || groupadd -g {gid} {username}
+RUN grep -q {gid} /etc/group || groupadd -f -g {gid} {username}
 RUN mkdir -p "{os.path.dirname(homedir)}"
 RUN grep -q {uid} /etc/passwd || useradd -d {homedir} -m -u {uid} -g {gid} {username}
 RUN sed -i '1iDefaults umask=000' /etc/sudoers

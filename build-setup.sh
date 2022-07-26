@@ -123,6 +123,9 @@ case ${ARCH} in
   "x86_64")
     DOCKER_BASE=""
     ;;
+  "aarch64")
+    DOCKER_BASE="arm64v8/"
+    ;;
   *)
     echo "Unsupported system architecture(${ARCH}) found for docker image"
     exit 1
@@ -138,7 +141,14 @@ if [ ! -d "${obmc_dir}" ]; then
 fi
 
 if [[ "$target" = repotest ]]; then
-  "${obmc_dir}"/meta-phosphor/scripts/run-repotest.sh
+  DOCKER_IMAGE_NAME=$(./scripts/build-unit-test-docker)
+  docker run --cap-add=sys_admin --rm=true \
+      --network host \
+      --privileged=true \
+      -u "$USER" \
+      -w "${obmc_dir}" -v "${obmc_dir}:${obmc_dir}" \
+      -t "${DOCKER_IMAGE_NAME}" \
+      "${obmc_dir}"/meta-phosphor/scripts/run-repotest
   exit
 fi
 
@@ -172,6 +182,7 @@ if [[ "${distro}" == fedora ]];then
       chrpath \
       cpio \
       diffstat \
+      file \
       findutils \
       gcc \
       gcc-c++ \
@@ -181,7 +192,6 @@ if [[ "${distro}" == fedora ]];then
       perl-bignum \
       perl-Data-Dumper \
       perl-Thread-Queue \
-      python-devel \
       python3-devel \
       SDL-devel \
       socat \
@@ -229,6 +239,7 @@ elif [[ "${distro}" == ubuntu ]]; then
       cpio \
       debianutils \
       diffstat \
+      file \
       gawk \
       git \
       iputils-ping \
@@ -237,7 +248,6 @@ elif [[ "${distro}" == ubuntu ]]; then
       libsdl1.2-dev \
       libthread-queue-any-perl \
       locales \
-      python \
       python3 \
       socat \
       subversion \
@@ -359,9 +369,9 @@ EOF_CONF
 
 # Kick off a build
 if [[ -n "${nice_priority}" ]]; then
-    nice -${nice_priority} bitbake ${BITBAKE_OPTS} ${bitbake_target}
+    nice -${nice_priority} bitbake -k ${BITBAKE_OPTS} ${bitbake_target}
 else
-    bitbake ${BITBAKE_OPTS} ${bitbake_target}
+    bitbake -k ${BITBAKE_OPTS} ${bitbake_target}
 fi
 
 # Copy internal build directory into xtrct_path directory

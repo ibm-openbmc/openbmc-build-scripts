@@ -246,7 +246,7 @@ def clone_pkg(pkg, branch):
     pkg_dir = os.path.join(WORKSPACE, pkg)
     if os.path.exists(os.path.join(pkg_dir, '.git')):
         return pkg_dir
-    pkg_repo = urljoin('https://gerrit.openbmc-project.xyz/openbmc/', pkg)
+    pkg_repo = urljoin('https://gerrit.openbmc.org/openbmc/', pkg)
     os.mkdir(pkg_dir)
     printline(pkg_dir, "> git clone", pkg_repo, branch, "./")
     try:
@@ -370,35 +370,31 @@ def build_dep_tree(name, pkgdir, dep_added, head, branch, dep_tree=None):
 
 
 def run_cppcheck():
-    match_re = re.compile(r'((?!\.mako\.).)*\.[ch](?:pp)?$', re.I)
-    cppcheck_files = []
-    stdout = subprocess.check_output(['git', 'ls-files'])
-
-    for f in stdout.decode('utf-8').split():
-        if match_re.match(f):
-            cppcheck_files.append(f)
-
-    if not cppcheck_files:
-        # skip cppcheck if there arent' any c or cpp sources.
-        print("no files")
+    if not os.path.exists(os.path.join("build", "compile_commands.json")):
         return None
 
+    try:
+        os.mkdir("cppcheck-temp")
+    except FileExistsError as e:
+        pass
+
     # http://cppcheck.sourceforge.net/manual.pdf
-    params = ['cppcheck', '-j', str(multiprocessing.cpu_count()),
-              '--enable=all', '--library=googletest', '--file-list=-']
-
-    cppcheck_process = subprocess.Popen(
-        params,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        stdin=subprocess.PIPE)
-    (stdout, stderr) = cppcheck_process.communicate(
-        input='\n'.join(cppcheck_files).encode('utf-8'))
-
-    if cppcheck_process.wait():
-        raise Exception('Cppcheck failed')
-    print(stdout.decode('utf-8'))
-    print(stderr.decode('utf-8'))
+    try:
+        check_call_cmd(
+            'cppcheck',
+            '-j', str(multiprocessing.cpu_count()),
+            '--enable=style,performance,portability,missingInclude',
+            '--suppress=useStlAlgorithm',
+            '--suppress=unusedStructMember',
+            '--suppress=postfixOperator',
+            '--suppress=unreadVariable',
+            '--suppress=knownConditionTrueFalse',
+            '--library=googletest',
+            '--project=build/compile_commands.json',
+            '--cppcheck-build-dir=cppcheck-temp',
+        )
+    except subprocess.CalledProcessError:
+        print("cppcheck found errors")
 
 
 def is_valgrind_safe():
@@ -520,6 +516,7 @@ class BuildSystem(object):
     be implemented, separating out the phases to control whether a package
     should merely be installed or also tested and analyzed.
     """
+
     def __init__(self, package, path):
         """Initialise the driver with properties independent of the build system
 
@@ -883,11 +880,14 @@ class Meson(BuildSystem):
         else:
             meson_flags.append('--buildtype=debugoptimized')
         if OptionKey('tests') in meson_options:
-            meson_flags.append(self._configure_option(meson_options, OptionKey('tests'), build_for_testing))
+            meson_flags.append(self._configure_option(
+                meson_options, OptionKey('tests'), build_for_testing))
         if OptionKey('examples') in meson_options:
-            meson_flags.append(self._configure_option(meson_options, OptionKey('examples'), build_for_testing))
+            meson_flags.append(self._configure_option(
+                meson_options, OptionKey('examples'), build_for_testing))
         if OptionKey('itests') in meson_options:
-            meson_flags.append(self._configure_option(meson_options, OptionKey('itests'), INTEGRATION_TEST))
+            meson_flags.append(self._configure_option(
+                meson_options, OptionKey('itests'), INTEGRATION_TEST))
         if MESON_FLAGS.get(self.package) is not None:
             meson_flags.extend(MESON_FLAGS.get(self.package))
         try:
@@ -914,13 +914,9 @@ class Meson(BuildSystem):
 
         try:
             test_args = ('--repeat', str(args.repeat), '-C', 'build')
-            check_call_cmd('meson', 'test', *test_args)
+            check_call_cmd('meson', 'test', '--print-errorlogs', *test_args)
 
         except CalledProcessError:
-            for root, _, files in os.walk(os.getcwd()):
-                if 'testlog.txt' not in files:
-                    continue
-                check_call_cmd('cat', os.path.join(root, 'testlog.txt'))
             raise Exception('Unit tests failed')
 
     def _setup_exists(self, setup):
@@ -933,9 +929,9 @@ class Meson(BuildSystem):
         try:
             with open(os.devnull, 'w') as devnull:
                 output = subprocess.check_output(
-                        ['meson', 'test', '-C', 'build',
-                         '--setup', setup, '-t', '0'],
-                        stderr=subprocess.STDOUT)
+                    ['meson', 'test', '-C', 'build',
+                     '--setup', setup, '-t', '0'],
+                    stderr=subprocess.STDOUT)
         except CalledProcessError as e:
             output = e.output
         output = output.decode('utf-8')
@@ -952,17 +948,12 @@ class Meson(BuildSystem):
             return
         try:
             if self._setup_exists('valgrind'):
-                check_call_cmd('meson', 'test','-t','10','-C', 'build',
-                               '--setup', 'valgrind')
+                check_call_cmd('meson', 'test', '-t', '10', '-C', 'build',
+                               '--print-errorlogs', '--setup', 'valgrind')
             else:
-                check_call_cmd('meson', 'test','-t','10', '-C', 'build',
-                               '--wrapper', 'valgrind')
+                check_call_cmd('meson', 'test', '-t', '10', '-C', 'build',
+                               '--print-errorlogs', '--wrapper', 'valgrind')
         except CalledProcessError:
-            for root, _, files in os.walk(os.getcwd()):
-                if 'testlog-valgrind.txt' not in files:
-                    continue
-                cat_args = os.path.join(root, 'testlog-valgrind.txt')
-                check_call_cmd('cat', cat_args)
             raise Exception('Valgrind tests failed')
 
     def analyze(self):
@@ -972,8 +963,16 @@ class Meson(BuildSystem):
         if os.path.isfile('.clang-tidy'):
             os.environ["CXX"] = "clang++"
             check_call_cmd('meson', 'setup', 'build-clang')
-            check_call_cmd('run-clang-tidy', '-p',
-                           'build-clang')
+            os.chdir("build-clang")
+            try:
+                check_call_cmd('run-clang-tidy', '-fix', '-format', '-p', '.')
+            except subprocess.CalledProcessError:
+                check_call_cmd("git", "-C", CODE_SCAN_DIR,
+                               "--no-pager", "diff")
+                raise
+            finally:
+                os.chdir("..")
+
         # Run the basic clang static analyzer otherwise
         else:
             check_call_cmd('ninja', '-C', 'build',
@@ -988,7 +987,7 @@ class Meson(BuildSystem):
             check_call_cmd('meson', 'configure', 'build',
                            '-Db_sanitize=address,undefined',
                            '-Db_lundef=false')
-            check_call_cmd('meson', 'test', '-C', 'build',
+            check_call_cmd('meson', 'test', '-C', 'build', '--print-errorlogs',
                            '--logbase', 'testlog-ubasan')
             # TODO: Fix memory sanitizer
             # check_call_cmd('meson', 'configure', 'build',
@@ -1093,7 +1092,7 @@ def find_file(filename, basedir):
     """
 
     if not isinstance(filename, list):
-        filename = [ filename ]
+        filename = [filename]
 
     filepaths = []
     for root, dirs, files in os.walk(basedir):
@@ -1151,6 +1150,7 @@ if __name__ == '__main__':
             'ipmiblob': 'ipmi-blob-tool',
             'hei': 'openpower-libhei',
             'phosphor-ipmi-blobs': 'phosphor-ipmi-blobs',
+            'libcr51sign': 'google-misc',
         },
     }
 
@@ -1178,11 +1178,11 @@ if __name__ == '__main__':
                         help="Only run test cases, no other validation")
     arg_inttests = parser.add_mutually_exclusive_group()
     arg_inttests.add_argument("--integration-tests", dest="INTEGRATION_TEST",
-                        action="store_true", required=False, default=True,
-                        help="Enable integration tests [default].")
+                              action="store_true", required=False, default=True,
+                              help="Enable integration tests [default].")
     arg_inttests.add_argument("--no-integration-tests", dest="INTEGRATION_TEST",
-                        action="store_false", required=False,
-                        help="Disable integration tests.")
+                              action="store_false", required=False,
+                              help="Disable integration tests.")
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Print additional package status messages")
     parser.add_argument("-r", "--repeat", help="Repeat tests N times",
@@ -1223,6 +1223,10 @@ if __name__ == '__main__':
 
         for f in format_scripts:
             check_call_cmd(f, CODE_SCAN_DIR)
+
+        # Check to see if any files changed
+        check_call_cmd("git", "-C", CODE_SCAN_DIR,
+                       "--no-pager", "diff", "--exit-code")
 
     # Check if this repo has a supported make infrastructure
     pkg = Package(UNIT_TEST_PKG, CODE_SCAN_DIR)

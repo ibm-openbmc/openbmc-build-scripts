@@ -113,6 +113,10 @@ case ${ARCH} in
     docker_base=""
     tini_arch="amd64"
     ;;
+  "aarch64")
+    docker_base="arm64v8/"
+    tini_arch="arm64"
+    ;;
   *)
     echo "Unsupported system architecture(${ARCH}) found for docker image"
     exit 1

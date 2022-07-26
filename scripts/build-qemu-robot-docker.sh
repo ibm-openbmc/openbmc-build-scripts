@@ -13,14 +13,13 @@
 #   parm1:  <optional, the name of the docker image to generate>
 #            default is openbmc/ubuntu-robot-qemu
 #   param2: <optional, the distro to build a docker image against>
-#            default is ubuntu:focal
 
 set -uo pipefail
 
 http_proxy=${http_proxy:-}
 
 DOCKER_IMG_NAME=${1:-"openbmc/ubuntu-robot-qemu"}
-DISTRO=${2:-"ubuntu:focal"}
+DISTRO=${2:-"ubuntu:jammy"}
 UBUNTU_MIRROR=${UBUNTU_MIRROR:-""}
 PIP_MIRROR=${PIP_MIRROR:-""}
 
@@ -63,8 +62,8 @@ RUN apt-get update && apt-get install -yy \
     debianutils \
     gawk \
     git \
-    python \
-    python-dev \
+    python2 \
+    python2-dev \
     python-setuptools \
     python3 \
     python3-dev \
@@ -146,7 +145,7 @@ RUN wget https://github.com/mozilla/geckodriver/releases/download/v0.29.0/geckod
         && chmod a+x /usr/local/bin/geckodriver
 
 RUN grep -q ${GROUPS[0]} /etc/group || groupadd -g ${GROUPS[0]} ${USER}
-RUN grep -q ${UID} /etc/passwd || useradd -d ${HOME} -m -u ${UID} -g ${GROUPS[0]} \
+RUN grep -q ${UID} /etc/passwd || useradd -d ${HOME} -l -m -u ${UID} -g ${GROUPS[0]} \
                     ${USER}
 USER ${USER}
 RUN /bin/bash
