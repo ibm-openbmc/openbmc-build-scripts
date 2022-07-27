@@ -77,7 +77,7 @@ class PackageDef(TypedDict, total=False):
 # Packages to include in image.
 packages = {
     "boost": PackageDef(
-        rev="1.79.0",
+        rev="1.77.0",
         url=(
             lambda pkg, rev: f"https://downloads.yoctoproject.org/mirror/sources/{pkg}_{rev.replace('.', '_')}.tar.bz2"
         ),
@@ -169,7 +169,7 @@ packages = {
     ),
     # version from /meta-openembedded/meta-oe/recipes-devtools/boost-url/boost-url_git.bb
     "CPPAlliance/url": PackageDef(
-        rev="d740a92d38e3a8f4d5b2153f53b82f1c98e312ab",
+        rev="4f712ed69a04a344957d22efa5dc111b415b3aff",
         build_type="custom",
         build_steps=[f"cp -a include/** {prefix}/include/"],
     ),
@@ -224,6 +224,8 @@ packages = {
         ],
     ),
     "openbmc/phosphor-objmgr": PackageDef(
+        # point to revision before new boost needed
+        rev="82720f07ac561af6c6ceb29e323f3c59d8effd13",
         depends=[
             "boost",
             "leethomason/tinyxml2",
