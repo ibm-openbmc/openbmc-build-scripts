@@ -32,7 +32,7 @@ set -uo pipefail
 
 # Default variables
 BRANCH=${BRANCH:-"master"}
-OBMC_BUILD_SCRIPTS="openbmc-build-scripts"
+OBMC_BUILD_SCRIPTS=${OBMC_BUILD_SCRIPTS:-"openbmc-build-scripts"}
 UNIT_TEST_PY_DIR="scripts"
 CONFIG_DIR="config"
 UNIT_TEST_PY="unit-test.py"
