@@ -255,6 +255,8 @@ packages = {
         ],
     ),
     "openbmc/sdbusplus": PackageDef(
+        # point to revision before async_send_hander change
+        rev="164b98bda29029d8260c5370f43c1a9cb08c473a",
         depends=[
             "facebookexperimental/libunifex",
         ],
