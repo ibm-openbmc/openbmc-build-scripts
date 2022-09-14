@@ -228,6 +228,7 @@ packages = {
         rev="82720f07ac561af6c6ceb29e323f3c59d8effd13",
         depends=[
             "boost",
+            "CLIUtils/CLI11",
             "leethomason/tinyxml2",
             "openbmc/phosphor-logging",
             "openbmc/sdbusplus",
