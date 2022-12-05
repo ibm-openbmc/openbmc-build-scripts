@@ -239,6 +239,8 @@ packages = {
         ],
     ),
     "ibm-openbmc/pldm": PackageDef(
+        # point to pldm before libpldm split
+        rev="eefe49bf0e204a102324709315ba9a693a50ecbb",
         depends=[
             "CLIUtils/CLI11",
             "boost",
@@ -283,6 +285,8 @@ packages = {
     "openbmc/stdplus": PackageDef(
         depends=["fmtlib/fmt", "Naios/function2", "google/googletest"],
         build_type="meson",
+        # point to revision before meson update
+        rev="aef36f4000d45c89187c6106bb89ebc58b8e8ee3",
         config_flags=[
             "-Dexamples=false",
             "-Dtests=disabled",
