@@ -25,17 +25,20 @@ import sys
 import threading
 from datetime import date
 from hashlib import sha256
+
+# typing.Dict is used for type-hints.
+from typing import Any, Callable, Dict, Iterable, Optional  # noqa: F401
+
 from sh import docker, git, nproc, uname  # type: ignore
-from typing import Any, Callable, Dict, Iterable, Optional
 
 try:
     # Python before 3.8 doesn't have TypedDict, so reroute to standard 'dict'.
     from typing import TypedDict
-except:
+except Exception:
 
     class TypedDict(dict):  # type: ignore
         # We need to do this to eat the 'total' argument.
-        def __init_subclass__(cls, **kwargs):
+        def __init_subclass__(cls, **kwargs: Any) -> None:
             super().__init_subclass__()
 
 
@@ -45,7 +48,7 @@ proc_count = nproc().strip()
 
 
 class PackageDef(TypedDict, total=False):
-    """ Package Definition for packages dictionary. """
+    """Package Definition for packages dictionary."""
 
     # rev [optional]: Revision of package to use.
     rev: str
@@ -77,13 +80,16 @@ class PackageDef(TypedDict, total=False):
 # Packages to include in image.
 packages = {
     "boost": PackageDef(
-        rev="1.80.0",
+        rev="1.81.0",
         url=(
-            lambda pkg, rev: f"https://downloads.yoctoproject.org/mirror/sources/{pkg}_{rev.replace('.', '_')}.tar.bz2"
+            lambda pkg, rev: f"https://boostorg.jfrog.io/artifactory/main/release/{rev}/source/{pkg}_{rev.replace('.', '_')}.tar.gz"  # noqa: E501
         ),
         build_type="custom",
         build_steps=[
-            f"./bootstrap.sh --prefix={prefix} --with-libraries=context,coroutine",
+            (
+                "./bootstrap.sh"
+                f" --prefix={prefix} --with-libraries=context,coroutine"
+            ),
             "./b2",
             f"./b2 install --prefix={prefix}",
         ],
@@ -94,7 +100,7 @@ packages = {
         build_steps=[f"cp -a include/cereal/ {prefix}/include/"],
     ),
     "danmar/cppcheck": PackageDef(
-        rev="27578e9c4c1f90c62b6938867735a054082e178e",
+        rev="2.9",
         build_type="cmake",
     ),
     "CLIUtils/CLI11": PackageDef(
@@ -107,7 +113,7 @@ packages = {
         ],
     ),
     "fmtlib/fmt": PackageDef(
-        rev="8.1.1",
+        rev="9.1.0",
         build_type="cmake",
         config_flags=[
             "-DFMT_DOC=OFF",
@@ -134,7 +140,10 @@ packages = {
         build_type="cmake",
         config_flags=["-DJSON_BuildTests=OFF"],
         custom_post_install=[
-            f"ln -s {prefix}/include/nlohmann/json.hpp {prefix}/include/json.hpp",
+            (
+                f"ln -s {prefix}/include/nlohmann/json.hpp"
+                f" {prefix}/include/json.hpp"
+            ),
         ],
     ),
     # Snapshot from 2019-05-24
@@ -142,9 +151,9 @@ packages = {
         rev="v1.15",
         build_type="make",
     ),
-    # dev-5.15 2022-09-27
+    # dev-6.0 2022-11-28
     "openbmc/linux": PackageDef(
-        rev="c9fb275212dac5b300311f6f6b1dcc5ed18a3493",
+        rev="1b16243b004ce4d977a9f3b9d9e715cf5028f867",
         build_type="custom",
         build_steps=[
             f"make -j{proc_count} defconfig",
@@ -158,12 +167,6 @@ packages = {
     "leethomason/tinyxml2": PackageDef(
         rev="9.0.0",
         build_type="cmake",
-    ),
-    # version from /meta-openembedded/meta-oe/recipes-devtools/boost-url/boost-url_git.bb
-    "CPPAlliance/url": PackageDef(
-        rev="d740a92d38e3a8f4d5b2153f53b82f1c98e312ab",
-        build_type="custom",
-        build_steps=[f"cp -a include/** {prefix}/include/"],
     ),
     "tristanpenman/valijson": PackageDef(
         rev="v0.7",
@@ -196,6 +199,8 @@ packages = {
         ],
         build_type="meson",
         config_flags=[
+            "-Dlibonly=true",
+            "-Dtests=disabled",
             f"-Dyamldir={prefix}/share/phosphor-dbus-yaml/yaml",
         ],
     ),
@@ -245,13 +250,15 @@ packages = {
     ),
     "openbmc/stdplus": PackageDef(
         depends=[
-            "Naios/function2",
             "fmtlib/fmt",
+            "google/googletest",
+            "Naios/function2",
         ],
         build_type="meson",
         config_flags=[
             "-Dexamples=false",
             "-Dtests=disabled",
+            "-Dgtest=enabled",
         ],
     ),
 }  # type: Dict[str, PackageDef]
@@ -293,7 +300,7 @@ class Package(threading.Thread):
     lock = threading.Lock()
 
     def __init__(self, pkg: str):
-        """ pkg - The name of this package (ex. foo/bar ) """
+        """pkg - The name of this package (ex. foo/bar )"""
         super(Package, self).__init__()
 
         self.package = pkg
@@ -304,7 +311,7 @@ class Package(threading.Thread):
         self.pkg_def["__package"] = self
 
     def run(self) -> None:
-        """ Thread 'run' function.  Builds the Docker stage. """
+        """Thread 'run' function.  Builds the Docker stage."""
 
         # In case this package has no rev, fetch it from Github.
         self._update_rev()
@@ -394,7 +401,7 @@ FROM {docker_base_img_name}
         return depcache
 
     def _update_rev(self) -> None:
-        """ Look up the HEAD for missing a static rev. """
+        """Look up the HEAD for missing a static rev."""
 
         if "rev" in self.pkg_def:
             return
@@ -409,7 +416,9 @@ FROM {docker_base_img_name}
             return
 
         # Ask Github for all the branches.
-        lookup = git("ls-remote", "--heads", f"https://github.com/{self.package}")
+        lookup = git(
+            "ls-remote", "--heads", f"https://github.com/{self.package}"
+        )
 
         # Find the branch matching {branch} (or fallback to master).
         #   This section is locked because we are modifying the PackageDef.
@@ -424,11 +433,11 @@ FROM {docker_base_img_name}
         Package.lock.release()
 
     def _stagename(self) -> str:
-        """ Create a name for the Docker stage associated with this pkg. """
+        """Create a name for the Docker stage associated with this pkg."""
         return self.package.replace("/", "-").lower()
 
     def _url(self) -> str:
-        """ Get the URL for this package. """
+        """Get the URL for this package."""
         rev = self.pkg_def["rev"]
 
         # If the lambda exists, call it.
@@ -461,11 +470,11 @@ FROM {docker_base_img_name}
         return cmd
 
     def _cmd_cd_srcdir(self) -> str:
-        """ Formulate the command necessary to 'cd' into the source dir. """
+        """Formulate the command necessary to 'cd' into the source dir."""
         return f"cd {self.package.split('/')[-1]}*"
 
     def _df_copycmds(self) -> str:
-        """ Formulate the dockerfile snippet necessary to COPY all depends. """
+        """Formulate the dockerfile snippet necessary to COPY all depends."""
 
         if "depends" not in self.pkg_def:
             return ""
@@ -563,13 +572,13 @@ class Docker:
 
     @staticmethod
     def timestamp() -> str:
-        """ Generate a timestamp for today using the ISO week. """
+        """Generate a timestamp for today using the ISO week."""
         today = date.today().isocalendar()
         return f"{today[0]}-W{today[1]:02}"
 
     @staticmethod
-    def tagname(pkgname: str, dockerfile: str) -> str:
-        """ Generate a tag name for a package using a hash of the Dockerfile. """
+    def tagname(pkgname: Optional[str], dockerfile: str) -> str:
+        """Generate a tag name for a package using a hash of the Dockerfile."""
         result = docker_image_name
         if pkgname:
             result += "-" + pkgname
@@ -581,12 +590,15 @@ class Docker:
 
     @staticmethod
     def build(pkg: str, tag: str, dockerfile: str) -> None:
-        """Build a docker image using the Dockerfile and tagging it with 'tag'."""
+        """Build a docker image using the Dockerfile and tagging it with 'tag'.
+        """
 
         # If we're not forcing builds, check if it already exists and skip.
         if not force_build:
             if docker.image.ls(tag, "--format", '"{{.Repository}}:{{.Tag}}"'):
-                print(f"Image {tag} already exists.  Skipping.", file=sys.stderr)
+                print(
+                    f"Image {tag} already exists.  Skipping.", file=sys.stderr
+                )
                 return
 
         # Build it.
@@ -616,7 +628,9 @@ class Docker:
 
 
 # Read a bunch of environment variables.
-docker_image_name = os.environ.get("DOCKER_IMAGE_NAME", "openbmc/ubuntu-unit-test")
+docker_image_name = os.environ.get(
+    "DOCKER_IMAGE_NAME", "openbmc/ubuntu-unit-test"
+)
 force_build = os.environ.get("FORCE_DOCKER_BUILD")
 is_automated_ci_build = os.environ.get("BUILD_URL", False)
 distro = os.environ.get("DISTRO", "ubuntu:kinetic")
@@ -658,11 +672,21 @@ else:
 mirror = ""
 if "ubuntu" in distro and ubuntu_mirror:
     mirror = f"""
-RUN echo "deb {ubuntu_mirror} $(. /etc/os-release && echo $VERSION_CODENAME) main restricted universe multiverse" > /etc/apt/sources.list && \\
-    echo "deb {ubuntu_mirror} $(. /etc/os-release && echo $VERSION_CODENAME)-updates main restricted universe multiverse" >> /etc/apt/sources.list && \\
-    echo "deb {ubuntu_mirror} $(. /etc/os-release && echo $VERSION_CODENAME)-security main restricted universe multiverse" >> /etc/apt/sources.list && \\
-    echo "deb {ubuntu_mirror} $(. /etc/os-release && echo $VERSION_CODENAME)-proposed main restricted universe multiverse" >> /etc/apt/sources.list && \\
-    echo "deb {ubuntu_mirror} $(. /etc/os-release && echo $VERSION_CODENAME)-backports main restricted universe multiverse" >> /etc/apt/sources.list
+RUN echo "deb {ubuntu_mirror} \
+        $(. /etc/os-release && echo $VERSION_CODENAME) \
+        main restricted universe multiverse" > /etc/apt/sources.list && \\
+    echo "deb {ubuntu_mirror} \
+        $(. /etc/os-release && echo $VERSION_CODENAME)-updates \
+            main restricted universe multiverse" >> /etc/apt/sources.list && \\
+    echo "deb {ubuntu_mirror} \
+        $(. /etc/os-release && echo $VERSION_CODENAME)-security \
+            main restricted universe multiverse" >> /etc/apt/sources.list && \\
+    echo "deb {ubuntu_mirror} \
+        $(. /etc/os-release && echo $VERSION_CODENAME)-proposed \
+            main restricted universe multiverse" >> /etc/apt/sources.list && \\
+    echo "deb {ubuntu_mirror} \
+        $(. /etc/os-release && echo $VERSION_CODENAME)-backports \
+            main restricted universe multiverse" >> /etc/apt/sources.list
 """
 
 # Special flags for proxying.
@@ -713,80 +737,80 @@ RUN apt-get update && apt-get dist-upgrade -yy && \
                       --recv-keys F2EDC64DC5AEE1F6B9C621F0C8CAB6595FDFF622 ) )
 
 # Parse the current repo list into a debug repo list
-RUN sed -n '/^deb /s,^deb [^ ]* ,deb http://ddebs.ubuntu.com ,p' /etc/apt/sources.list >/etc/apt/sources.list.d/debug.list
+RUN sed -n '/^deb /s,^deb [^ ]* ,deb http://ddebs.ubuntu.com ,p' \
+        /etc/apt/sources.list >/etc/apt/sources.list.d/debug.list
 
 # Remove non-existent debug repos
-RUN sed -i '/-\(backports\|security\) /d' /etc/apt/sources.list.d/debug.list
+RUN sed -i '/-\\(backports\\|security\\) /d' /etc/apt/sources.list.d/debug.list
 
 RUN cat /etc/apt/sources.list.d/debug.list
 
 RUN apt-get update && apt-get dist-upgrade -yy && apt-get install -yy \
-    gcc-12 \
-    g++-12 \
-    libc6-dbg \
-    libc6-dev \
-    libtool \
-    bison \
-    libdbus-1-dev \
-    flex \
-    cmake \
-    python3 \
-    python3-dev\
-    python3-yaml \
-    python3-mako \
-    python3-pip \
-    python3-setuptools \
-    python3-git \
-    python3-socks \
-    pkg-config \
     autoconf \
     autoconf-archive \
-    libsystemd-dev \
-    systemd \
-    libssl-dev \
-    libevdev-dev \
-    libjpeg-dev \
-    libpng-dev \
-    ninja-build \
-    sudo \
-    curl \
-    git \
-    dbus \
-    iputils-ping \
+    bison \
     clang-15 \
     clang-format-15 \
     clang-tidy-15 \
     clang-tools-15 \
-    shellcheck \
-    npm \
+    cmake \
+    curl \
+    dbus \
+    device-tree-compiler \
+    flex \
+    g++-12 \
+    gcc-12 \
+    git \
     iproute2 \
+    iputils-ping \
+    libc6-dbg \
+    libc6-dev \
+    libconfig++-dev \
+    libcryptsetup-dev \
+    libdbus-1-dev \
+    libevdev-dev \
+    libgpiod-dev \
+    libi2c-dev \
+    libjpeg-dev \
+    libjson-perl \
+    libldap2-dev \
+    libmimetic-dev \
     libnl-3-dev \
     libnl-genl-3-dev \
-    libconfig++-dev \
-    libsnmp-dev \
-    valgrind \
-    valgrind-dbg \
     libpam0g-dev \
-    xxd \
-    libi2c-dev \
-    wget \
-    libldap2-dev \
-    libprotobuf-dev \
-    liburing-dev \
-    liburing2-dbgsym \
-    libperlio-gzip-perl \
-    libjson-perl \
-    protobuf-compiler \
-    libgpiod-dev \
-    device-tree-compiler \
     libpciaccess-dev \
-    libmimetic-dev \
+    libperlio-gzip-perl \
+    libpng-dev \
+    libprotobuf-dev \
+    libsnmp-dev \
+    libssl-dev \
+    libsystemd-dev \
+    libtool \
+    liburing2-dbgsym \
+    liburing-dev \
     libxml2-utils \
     libxml-simple-perl \
+    ninja-build \
+    npm \
+    pkg-config \
+    protobuf-compiler \
+    python3 \
+    python3-dev\
+    python3-git \
+    python3-mako \
+    python3-pip \
+    python3-setuptools \
+    python3-socks \
+    python3-yaml \
     rsync \
-    libcryptsetup-dev
-
-RUN npm install -g eslint@latest eslint-plugin-json@latest
+    shellcheck \
+    sudo \
+    systemd \
+    valgrind \
+    valgrind-dbg \
+    vim \
+    wget \
+    xxd
 
 # Kinetic comes with GCC-12, so skip this.
 #RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 12 \
@@ -800,7 +824,8 @@ RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-15 1000 \
   --slave /usr/bin/clang++ clang++ /usr/bin/clang++-15 \
   --slave /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-15 \
   --slave /usr/bin/clang-format clang-format /usr/bin/clang-format-15 \
-  --slave /usr/bin/run-clang-tidy run-clang-tidy.py /usr/bin/run-clang-tidy-15 \
+  --slave /usr/bin/run-clang-tidy run-clang-tidy.py \
+        /usr/bin/run-clang-tidy-15 \
   --slave /usr/bin/scan-build scan-build /usr/bin/scan-build-15
 
 """
@@ -814,23 +839,23 @@ RUN apt-get update && apt-get dist-upgrade -yy
 
 """
 
-dockerfile_base += f"""
+dockerfile_base += """
+RUN pip3 install beautysh
+RUN pip3 install black
+RUN pip3 install codespell
+RUN pip3 install flake8
+RUN pip3 install gitlint
 RUN pip3 install inflection
-RUN pip3 install pycodestyle
+RUN pip3 install isort
 RUN pip3 install jsonschema
 RUN pip3 install meson==0.63.0
-RUN pip3 install packaging
 RUN pip3 install protobuf
-RUN pip3 install codespell
 RUN pip3 install requests
-"""
 
-# Note, we use sha1s here because the newest gitlint release doesn't include
-# some features we need.  Next time they release, we can rely on a direct
-# release tag
-dockerfile_base += f"""
-RUN pip3 install git+https://github.com/jorisroovers/gitlint.git@8ede310d62d5794efa7518b235f899f8a8ad6a68\#subdirectory=gitlint-core
-RUN pip3 install git+https://github.com/jorisroovers/gitlint.git@8ede310d62d5794efa7518b235f899f8a8ad6a68
+RUN npm install -g \
+        eslint@latest eslint-plugin-json@latest \
+        markdownlint-cli@latest \
+        prettier@latest
 """
 
 # Build the base and stage docker images.
@@ -852,7 +877,8 @@ RUN echo '{Package.depcache()}' > /tmp/depcache
 # Final configuration for the workspace
 RUN grep -q {gid} /etc/group || groupadd -f -g {gid} {username}
 RUN mkdir -p "{os.path.dirname(homedir)}"
-RUN grep -q {uid} /etc/passwd || useradd -d {homedir} -m -u {uid} -g {gid} {username}
+RUN grep -q {uid} /etc/passwd || \
+        useradd -d {homedir} -m -u {uid} -g {gid} {username}
 RUN sed -i '1iDefaults umask=000' /etc/sudoers
 RUN echo "{username} ALL=(ALL) NOPASSWD: ALL" >>/etc/sudoers
 
