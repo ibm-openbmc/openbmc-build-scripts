@@ -184,7 +184,7 @@ packages = {
             "-Dtests=disabled",
         ],
     ),
-    "openbmc/phosphor-dbus-interfaces": PackageDef(
+    "ibm-openbmc/phosphor-dbus-interfaces": PackageDef(
         depends=["openbmc/sdbusplus"],
         build_type="meson",
         config_flags=["-Dgenerate_md=false"],
@@ -192,7 +192,7 @@ packages = {
     "openbmc/phosphor-logging": PackageDef(
         depends=[
             "USCiLab/cereal",
-            "openbmc/phosphor-dbus-interfaces",
+            "ibm-openbmc/phosphor-dbus-interfaces",
             "openbmc/sdbusplus",
             "openbmc/sdeventplus",
         ],
@@ -208,7 +208,7 @@ packages = {
             "CLIUtils/CLI11",
             "boost",
             "leethomason/tinyxml2",
-            "openbmc/phosphor-dbus-interfaces",
+            "ibm-openbmc/phosphor-dbus-interfaces",
             "openbmc/phosphor-logging",
             "openbmc/sdbusplus",
         ],
@@ -217,7 +217,7 @@ packages = {
             "-Dtests=disabled",
         ],
     ),
-    "openbmc/libpldm": PackageDef(
+    "ibm-openbmc/libpldm": PackageDef(
         build_type="meson",
         config_flags=[
             "-Doem-ibm=enabled",
