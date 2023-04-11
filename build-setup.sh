@@ -356,8 +356,8 @@ export SDKMACHINE=x86_64
 
 # Custom BitBake config settings
 cat >> conf/local.conf << EOF_CONF
-BB_NUMBER_THREADS = "$(nproc)"
-PARALLEL_MAKE = "-j$(nproc)"
+BB_NUMBER_THREADS = "$num_cpu"
+PARALLEL_MAKE = "-j$num_cpu"
 INHERIT += "rm_work"
 BB_GENERATE_MIRROR_TARBALLS = "1"
 DL_DIR="${ssc_dir}/bitbake_downloads"
@@ -395,6 +395,10 @@ chmod a+x "${WORKSPACE}/build.sh"
 # Give the Docker image a name based on the distro,tag,arch,and target
 img_name=${img_name:-openbmc/${distro}:${img_tag}-${target}-${ARCH}}
 
+# Ensure appropriate docker build output to see progress and identify
+# any issues
+export BUILDKIT_PROGRESS=plain
+
 # Build the Docker image
 docker build -t "${img_name}" - <<< "${Dockerfile}"
 
@@ -412,6 +416,10 @@ if [[ "${WORKSPACE}" = "${HOME}/"* || "${WORKSPACE}" = "${HOME}" ]];then
     mount_workspace_dir=""
 fi
 
+# If we are building on a podman based machine, need to have this set in
+# the env to allow the home mount to work (no impact on non-podman systems)
+export PODMAN_USERNS="keep-id"
+
 # Run the Docker container, execute the build.sh script
 # shellcheck disable=SC2086 # mount commands word-split purposefully
 docker run \
@@ -425,7 +433,6 @@ docker run \
     ${mount_obmc_dir} \
     ${mount_ssc_dir} \
     ${mount_workspace_dir} \
-    --cpus="$num_cpu" \
     "${img_name}" \
     "${WORKSPACE}/build.sh"
 

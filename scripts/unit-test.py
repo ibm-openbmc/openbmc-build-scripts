@@ -383,6 +383,7 @@ def run_cppcheck():
                 "-j",
                 str(multiprocessing.cpu_count()),
                 "--enable=style,performance,portability,missingInclude",
+                "--inline-suppr",
                 "--suppress=useStlAlgorithm",
                 "--suppress=unusedStructMember",
                 "--suppress=postfixOperator",
@@ -774,7 +775,7 @@ class CMake(BuildSystem):
         )
 
     def install(self):
-        pass
+        check_call_cmd("sudo", "cmake", "--install", ".")
 
     def test(self):
         if make_target_exists("test"):

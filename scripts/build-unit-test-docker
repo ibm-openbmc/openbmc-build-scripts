@@ -146,6 +146,10 @@ packages = {
             ),
         ],
     ),
+    "json-c/json-c": PackageDef(
+        rev="json-c-0.16-20220414",
+        build_type="cmake",
+    ),
     # Snapshot from 2019-05-24
     "linux-test-project/lcov": PackageDef(
         rev="v1.15",
@@ -590,8 +594,7 @@ class Docker:
 
     @staticmethod
     def build(pkg: str, tag: str, dockerfile: str) -> None:
-        """Build a docker image using the Dockerfile and tagging it with 'tag'.
-        """
+        """Build a docker image using the Dockerfile and tagging it with 'tag'."""
 
         # If we're not forcing builds, check if it already exists and skip.
         if not force_build:
@@ -640,6 +643,10 @@ http_proxy = os.environ.get("http_proxy")
 
 gerrit_project = os.environ.get("GERRIT_PROJECT")
 gerrit_rev = os.environ.get("GERRIT_PATCHSET_REVISION")
+
+# Ensure appropriate docker build output to see progress and identify
+# any issues
+os.environ["BUILDKIT_PROGRESS"] = "plain"
 
 # Set up some common variables.
 username = os.environ.get("USER", "root")
@@ -763,6 +770,7 @@ RUN apt-get update && apt-get dist-upgrade -yy && apt-get install -yy \
     git \
     iproute2 \
     iputils-ping \
+    libaudit-dev \
     libc6-dbg \
     libc6-dev \
     libconfig++-dev \
