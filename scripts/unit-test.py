@@ -1035,7 +1035,9 @@ class Meson(BuildSystem):
             with TemporaryDirectory(prefix="build", dir=".") as build_dir:
                 check_call_cmd("meson", "setup", build_dir)
                 try:
-                    check_call_cmd("ninja", "-C", build_dir, "clang-tidy")
+                    check_call_cmd(
+                        "run-clang-tidy", "-fix", "-format", "-p", build_dir
+                    )
                 except subprocess.CalledProcessError:
                     check_call_cmd(
                         "git", "-C", CODE_SCAN_DIR, "--no-pager", "diff"
