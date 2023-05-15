@@ -80,14 +80,18 @@ class PackageDef(TypedDict, total=False):
 # Packages to include in image.
 packages = {
     "boost": PackageDef(
-        rev="1.81.0",
+        rev="1.82.0",
         url=(
             lambda pkg, rev: f"https://boostorg.jfrog.io/artifactory/main/release/{rev}/source/{pkg}_{rev.replace('.', '_')}.tar.gz"  # noqa: E501
         ),
         build_type="custom",
         build_steps=[
             (
-                "./bootstrap.sh"
+                "wget"
+                " https://github.com/williamspatrick/beast/commit/98f8b1fbd059a35754c2c7b2841769cf8d021272.patch"
+                " && patch -p2 <"
+                " 98f8b1fbd059a35754c2c7b2841769cf8d021272.patch &&"
+                " ./bootstrap.sh"
                 f" --prefix={prefix} --with-libraries=context,coroutine"
             ),
             "./b2",
@@ -154,15 +158,6 @@ packages = {
     "linux-test-project/lcov": PackageDef(
         rev="v1.15",
         build_type="make",
-    ),
-    # dev-6.0 2022-11-28
-    "openbmc/linux": PackageDef(
-        rev="1b16243b004ce4d977a9f3b9d9e715cf5028f867",
-        build_type="custom",
-        build_steps=[
-            f"make -j{proc_count} defconfig",
-            f"make INSTALL_HDR_PATH={prefix} headers_install",
-        ],
     ),
     "LibVNC/libvncserver": PackageDef(
         rev="LibVNCServer-0.9.13",
@@ -636,7 +631,7 @@ docker_image_name = os.environ.get(
 )
 force_build = os.environ.get("FORCE_DOCKER_BUILD")
 is_automated_ci_build = os.environ.get("BUILD_URL", False)
-distro = os.environ.get("DISTRO", "ubuntu:kinetic")
+distro = os.environ.get("DISTRO", "ubuntu:lunar")
 branch = os.environ.get("BRANCH", "master")
 ubuntu_mirror = os.environ.get("UBUNTU_MIRROR")
 http_proxy = os.environ.get("http_proxy")
@@ -736,12 +731,15 @@ RUN echo "ubuntu keyserver rev as of 2021-04-21"
 # We need the keys to be imported for dbgsym repos
 # New releases have a package, older ones fall back to manual fetching
 # https://wiki.ubuntu.com/Debug%20Symbol%20Packages
+# Known issue with gpg to get keys via proxy -
+# https://bugs.launchpad.net/ubuntu/+source/gnupg2/+bug/1788190, hence using
+# curl to get keys.
 RUN apt-get update && apt-get dist-upgrade -yy && \
     ( apt-get install gpgv ubuntu-dbgsym-keyring || \
-        ( apt-get install -yy dirmngr && \
-          apt-key adv --keyserver keyserver.ubuntu.com \
-                      {proxy_keyserver} \
-                      --recv-keys F2EDC64DC5AEE1F6B9C621F0C8CAB6595FDFF622 ) )
+        ( apt-get install -yy dirmngr curl && \
+          curl -sSL \
+          'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xF2EDC64DC5AEE1F6B9C621F0C8CAB6595FDFF622' \
+          | apt-key add - ))
 
 # Parse the current repo list into a debug repo list
 RUN sed -n '/^deb /s,^deb [^ ]* ,deb http://ddebs.ubuntu.com ,p' \
@@ -756,10 +754,10 @@ RUN apt-get update && apt-get dist-upgrade -yy && apt-get install -yy \
     autoconf \
     autoconf-archive \
     bison \
-    clang-15 \
-    clang-format-15 \
-    clang-tidy-15 \
-    clang-tools-15 \
+    clang-16 \
+    clang-format-16 \
+    clang-tidy-16 \
+    clang-tools-16 \
     cmake \
     curl \
     dbus \
@@ -794,7 +792,6 @@ RUN apt-get update && apt-get dist-upgrade -yy && apt-get install -yy \
     libssl-dev \
     libsystemd-dev \
     libtool \
-    liburing2-dbgsym \
     liburing-dev \
     libxml2-utils \
     libxml-simple-perl \
@@ -820,7 +817,7 @@ RUN apt-get update && apt-get dist-upgrade -yy && apt-get install -yy \
     wget \
     xxd
 
-# Kinetic comes with GCC-12, so skip this.
+# Lunar comes with GCC-12, so skip this.
 #RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 12 \
 #  --slave /usr/bin/g++ g++ /usr/bin/g++-12 \
 #  --slave /usr/bin/gcov gcov /usr/bin/gcov-12 \
@@ -828,13 +825,13 @@ RUN apt-get update && apt-get dist-upgrade -yy && apt-get install -yy \
 #  --slave /usr/bin/gcov-tool gcov-tool /usr/bin/gcov-tool-12
 #RUN update-alternatives --install /usr/bin/cpp cpp /usr/bin/cpp-12 12
 
-RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-15 1000 \
-  --slave /usr/bin/clang++ clang++ /usr/bin/clang++-15 \
-  --slave /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-15 \
-  --slave /usr/bin/clang-format clang-format /usr/bin/clang-format-15 \
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-16 1000 \
+  --slave /usr/bin/clang++ clang++ /usr/bin/clang++-16 \
+  --slave /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-16 \
+  --slave /usr/bin/clang-format clang-format /usr/bin/clang-format-16 \
   --slave /usr/bin/run-clang-tidy run-clang-tidy.py \
-        /usr/bin/run-clang-tidy-15 \
-  --slave /usr/bin/scan-build scan-build /usr/bin/scan-build-15
+        /usr/bin/run-clang-tidy-16 \
+  --slave /usr/bin/scan-build scan-build /usr/bin/scan-build-16
 
 """
 
@@ -848,17 +845,18 @@ RUN apt-get update && apt-get dist-upgrade -yy
 """
 
 dockerfile_base += """
-RUN pip3 install beautysh
-RUN pip3 install black
-RUN pip3 install codespell
-RUN pip3 install flake8
-RUN pip3 install gitlint
-RUN pip3 install inflection
-RUN pip3 install isort
-RUN pip3 install jsonschema
-RUN pip3 install meson==0.63.0
-RUN pip3 install protobuf
-RUN pip3 install requests
+RUN pip3 install --break-system-packages \
+        beautysh \
+        black \
+        codespell \
+        flake8 \
+        gitlint \
+        inflection \
+        isort \
+        jsonschema \
+        meson==1.0.1 \
+        protobuf \
+        requests
 
 RUN npm install -g \
         eslint@latest eslint-plugin-json@latest \
@@ -882,11 +880,19 @@ FROM {docker_base_img_name}
 # NOTE: The file is sorted to ensure the ordering is stable.
 RUN echo '{Package.depcache()}' > /tmp/depcache
 
-# Final configuration for the workspace
-RUN grep -q {gid} /etc/group || groupadd -f -g {gid} {username}
+# Ensure the group, user, and home directory are created (or rename them if
+# they already exist).
+RUN if grep -q ":{gid}:" /etc/group ; then \
+        groupmod -n {username} $(awk -F : '{{ if ($3 == {gid}) {{ print $1 }} }}' /etc/group) ; \
+    else \
+        groupadd -f -g {gid} {username} ; \
+    fi
 RUN mkdir -p "{os.path.dirname(homedir)}"
-RUN grep -q {uid} /etc/passwd || \
-        useradd -d {homedir} -m -u {uid} -g {gid} {username}
+RUN if grep -q ":{uid}:" /etc/passwd ; then \
+        usermod -l {username} -d {homedir} -m $(awk -F : '{{ if ($3 == {uid}) {{ print $1 }} }}' /etc/passwd) ; \
+    else \
+        useradd -d {homedir} -m -u {uid} -g {gid} {username} ; \
+    fi
 RUN sed -i '1iDefaults umask=000' /etc/sudoers
 RUN echo "{username} ALL=(ALL) NOPASSWD: ALL" >>/etc/sudoers
 

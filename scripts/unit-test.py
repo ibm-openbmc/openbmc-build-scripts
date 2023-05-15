@@ -224,7 +224,7 @@ class DepTree:
             child.PrintTree(level + 1)
 
 
-def check_call_cmd(*cmd):
+def check_call_cmd(*cmd, **kwargs):
     """
     Verbose prints the directory location the given command is called from and
     the command, then executes the command using check_call.
@@ -234,7 +234,7 @@ def check_call_cmd(*cmd):
     cmd                 List of parameters constructing the complete command
     """
     printline(os.getcwd(), ">", " ".join(cmd))
-    check_call(cmd)
+    check_call(cmd, **kwargs)
 
 
 def clone_pkg(pkg, branch):
@@ -1065,6 +1065,7 @@ class Meson(BuildSystem):
                 "--print-errorlogs",
                 "--logbase",
                 "testlog-ubasan",
+                env=os.environ | {"UBSAN_OPTIONS": "halt_on_error=1"},
             )
             # TODO: Fix memory sanitizer
             # check_call_cmd('meson', 'configure', 'build',
@@ -1108,6 +1109,15 @@ class Meson(BuildSystem):
                 raise Exception(
                     "C++20 support requires specifying in meson.build: "
                     + "meson_version: '>=0.57'"
+                )
+
+        if "get_variable(" in build_contents:
+            if not meson_version or not meson_version_compare(
+                meson_version, ">=0.58"
+            ):
+                raise Exception(
+                    "dep.get_variable() with positional argument requires "
+                    + "meson_Version: '>=0.58'"
                 )
 
 
