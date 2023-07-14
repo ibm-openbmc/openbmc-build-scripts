@@ -213,6 +213,7 @@ packages = {
         ],
     ),
     "openbmc/phosphor-logging": PackageDef(
+        rev="aaf23ee78584181b7b64450c3eafa8b3c7372b3b",
         depends=[
             "USCiLab/cereal",
             "ibm-openbmc/phosphor-dbus-interfaces",
@@ -276,6 +277,7 @@ packages = {
         ],
     ),
     "openbmc/sdeventplus": PackageDef(
+        rev="a8c11e3ca342b090aec615c832b85686bd4655f6",
         depends=["Naios/function2", "openbmc/stdplus"],
         build_type="meson",
         config_flags=[
