@@ -225,6 +225,7 @@ packages = {
         ],
     ),
     "openbmc/sdbusplus": PackageDef(
+        rev="f23e4d4127cc2d875f612ba12a0ae8bc5337f499",
         build_type="meson",
         custom_post_dl=[
             "cd tools",
@@ -237,6 +238,7 @@ packages = {
         ],
     ),
     "openbmc/sdeventplus": PackageDef(
+        rev="25f484be0ede53f717a716604a0abdea8783a902",
         depends=[
             "Naios/function2",
             "openbmc/stdplus",
@@ -248,6 +250,7 @@ packages = {
         ],
     ),
     "openbmc/stdplus": PackageDef(
+        rev="29f235fdbcca38ec52bcaf81a55bf52bea463958",
         depends=[
             "fmtlib/fmt",
             "google/googletest",
