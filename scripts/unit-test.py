@@ -1266,8 +1266,10 @@ if __name__ == '__main__':
 
     # Run any custom CI scripts the repo has, of which there can be
     # multiple of and anywhere in the repository.
-    ci_scripts = find_file(['run-ci.sh', 'run-ci'], CODE_SCAN_DIR)
-    if ci_scripts:
-        os.chdir(CODE_SCAN_DIR)
-        for ci_script in ci_scripts:
-            check_call_cmd(ci_script)
+    # No custom CI in older releases due to incompatible package upgrades
+    # in docker container
+    #ci_scripts = find_file(['run-ci.sh', 'run-ci'], CODE_SCAN_DIR)
+    #if ci_scripts:
+    #    os.chdir(CODE_SCAN_DIR)
+    #    for ci_script in ci_scripts:
+    #        check_call_cmd(ci_script)
