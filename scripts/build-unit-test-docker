@@ -195,6 +195,7 @@ packages = {
     ),
     "open-power/pdbg": PackageDef(build_type="autoconf"),
     "openbmc/gpioplus": PackageDef(
+        rev="ab995c50185c37cf11e8b9fefcbb184bcd516e2d",
         depends=["openbmc/stdplus"],
         build_type="meson",
         config_flags=[
