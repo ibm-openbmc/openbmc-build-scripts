@@ -190,6 +190,7 @@ packages = {
         config_flags=["-Dgenerate_md=false"],
     ),
     "openbmc/phosphor-logging": PackageDef(
+        rev="8d1e19b39b38e23da06b5a6597df9cfd381ab0d3",
         depends=[
             "USCiLab/cereal",
             "ibm-openbmc/phosphor-dbus-interfaces",
