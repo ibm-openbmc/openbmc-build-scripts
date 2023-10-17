@@ -225,7 +225,7 @@ packages = {
         ],
     ),
     "openbmc/sdbusplus": PackageDef(
-        rev="f23e4d4127cc2d875f612ba12a0ae8bc5337f499",
+        rev="4b62ae509a582fe5046d2ecdfd37d6b083fc20a1",
         build_type="meson",
         custom_post_dl=[
             "cd tools",
