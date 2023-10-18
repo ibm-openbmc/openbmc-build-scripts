@@ -189,7 +189,7 @@ packages = {
         build_type="meson",
         config_flags=["-Dgenerate_md=false"],
     ),
-    "openbmc/phosphor-logging": PackageDef(
+    "ibm-openbmc/phosphor-logging": PackageDef(
         depends=[
             "USCiLab/cereal",
             "ibm-openbmc/phosphor-dbus-interfaces",
@@ -209,7 +209,7 @@ packages = {
             "boost",
             "leethomason/tinyxml2",
             "ibm-openbmc/phosphor-dbus-interfaces",
-            "openbmc/phosphor-logging",
+            "ibm-openbmc/phosphor-logging",
             "openbmc/sdbusplus",
         ],
         build_type="meson",
@@ -225,7 +225,7 @@ packages = {
         ],
     ),
     "openbmc/sdbusplus": PackageDef(
-        rev="4b62ae509a582fe5046d2ecdfd37d6b083fc20a1",
+        rev="fa663aec1ec21036f972318cb9cd59b3623f7afd",
         build_type="meson",
         custom_post_dl=[
             "cd tools",
