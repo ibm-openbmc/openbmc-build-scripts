@@ -80,19 +80,19 @@ class PackageDef(TypedDict, total=False):
 # Packages to include in image.
 packages = {
     "boost": PackageDef(
-        rev="1.82.0",
+        rev="1.83.0",
         url=(
             lambda pkg, rev: f"https://boostorg.jfrog.io/artifactory/main/release/{rev}/source/{pkg}_{rev.replace('.', '_')}.tar.gz"  # noqa: E501
         ),
         build_type="custom",
         build_steps=[
             (
-                "wget"
+                "curl --remote-name"
                 " https://github.com/williamspatrick/beast/commit/98f8b1fbd059a35754c2c7b2841769cf8d021272.patch"
                 " && patch -p2 <"
                 " 98f8b1fbd059a35754c2c7b2841769cf8d021272.patch &&"
                 " ./bootstrap.sh"
-                f" --prefix={prefix} --with-libraries=context,coroutine"
+                f" --prefix={prefix} --with-libraries=context,coroutine,url"
             ),
             "./b2",
             f"./b2 install --prefix={prefix}",
@@ -108,7 +108,7 @@ packages = {
         build_type="cmake",
     ),
     "CLIUtils/CLI11": PackageDef(
-        rev="v1.9.1",
+        rev="v2.3.2",
         build_type="cmake",
         config_flags=[
             "-DBUILD_TESTING=OFF",
@@ -117,7 +117,7 @@ packages = {
         ],
     ),
     "fmtlib/fmt": PackageDef(
-        rev="9.1.0",
+        rev="10.0.0",
         build_type="cmake",
         config_flags=[
             "-DFMT_DOC=OFF",
@@ -132,12 +132,21 @@ packages = {
             f"cp include/function2/function2.hpp {prefix}/include/function2/",
         ],
     ),
-    # release-1.12.1
+    # release-1.13.0
     "google/googletest": PackageDef(
-        rev="58d77fa8070e8cec2dc1ed015d66b454c8d78850",
+        rev="b796f7d44681514f58a683a3a71ff17c94edb0c1",
         build_type="cmake",
         config_env=["CXXFLAGS=-std=c++20"],
         config_flags=["-DTHREADS_PREFER_PTHREAD_FLAG=ON"],
+    ),
+    "nghttp2/nghttp2": PackageDef(
+        rev="v1.54.0",
+        build_type="cmake",
+        config_env=["CXXFLAGS=-std=c++20"],
+        config_flags=[
+            "-DENABLE_LIB_ONLY=ON",
+            "-DENABLE_STATIC_LIB=ON",
+        ],
     ),
     "nlohmann/json": PackageDef(
         rev="v3.11.2",
@@ -217,9 +226,16 @@ packages = {
             "-Dtests=disabled",
         ],
     ),
+    "openbmc/libpeci": PackageDef(
+        build_type="meson",
+        config_flags=[
+            "-Draw-peci=disabled",
+        ],
+    ),
     "ibm-openbmc/libpldm": PackageDef(
         build_type="meson",
         config_flags=[
+            "-Dabi=deprecated,stable",
             "-Doem-ibm=enabled",
             "-Dtests=disabled",
         ],
@@ -564,7 +580,7 @@ FROM {docker_base_img_name}
     def _cmd_build_meson(self) -> str:
         options = " ".join(self.pkg_def.get("config_flags", []))
         env = " ".join(self.pkg_def.get("config_env", []))
-        result = f"{env} meson builddir {meson_flags} {options} && "
+        result = f"{env} meson setup builddir {meson_flags} {options} && "
         result += "ninja -C builddir && ninja -C builddir install"
         return result
 
@@ -634,7 +650,7 @@ docker_image_name = os.environ.get(
 )
 force_build = os.environ.get("FORCE_DOCKER_BUILD")
 is_automated_ci_build = os.environ.get("BUILD_URL", False)
-distro = os.environ.get("DISTRO", "ubuntu:lunar")
+distro = os.environ.get("DISTRO", "ubuntu:mantic")
 branch = os.environ.get("BRANCH", "master")
 ubuntu_mirror = os.environ.get("UBUNTU_MIRROR")
 http_proxy = os.environ.get("http_proxy")
@@ -738,7 +754,7 @@ RUN echo "ubuntu keyserver rev as of 2021-04-21"
 # https://bugs.launchpad.net/ubuntu/+source/gnupg2/+bug/1788190, hence using
 # curl to get keys.
 RUN apt-get update && apt-get dist-upgrade -yy && \
-    ( apt-get install gpgv ubuntu-dbgsym-keyring || \
+    ( apt-get install -yy gpgv ubuntu-dbgsym-keyring || \
         ( apt-get install -yy dirmngr curl && \
           curl -sSL \
           'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xF2EDC64DC5AEE1F6B9C621F0C8CAB6595FDFF622' \
@@ -754,20 +770,22 @@ RUN sed -i '/-\\(backports\\|security\\) /d' /etc/apt/sources.list.d/debug.list
 RUN cat /etc/apt/sources.list.d/debug.list
 
 RUN apt-get update && apt-get dist-upgrade -yy && apt-get install -yy \
+    abi-compliance-checker \
+    abi-dumper \
     autoconf \
     autoconf-archive \
     bison \
-    clang-16 \
-    clang-format-16 \
-    clang-tidy-16 \
-    clang-tools-16 \
+    clang-17 \
+    clang-format-17 \
+    clang-tidy-17 \
+    clang-tools-17 \
     cmake \
     curl \
     dbus \
     device-tree-compiler \
     flex \
-    g++-12 \
-    gcc-12 \
+    g++-13 \
+    gcc-13 \
     git \
     iproute2 \
     iputils-ping \
@@ -815,26 +833,26 @@ RUN apt-get update && apt-get dist-upgrade -yy && apt-get install -yy \
     sudo \
     systemd \
     valgrind \
-    valgrind-dbg \
+    valgrind-dbgsym \
     vim \
     wget \
     xxd
 
-# Lunar comes with GCC-12, so skip this.
-#RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 12 \
-#  --slave /usr/bin/g++ g++ /usr/bin/g++-12 \
-#  --slave /usr/bin/gcov gcov /usr/bin/gcov-12 \
-#  --slave /usr/bin/gcov-dump gcov-dump /usr/bin/gcov-dump-12 \
-#  --slave /usr/bin/gcov-tool gcov-tool /usr/bin/gcov-tool-12
-#RUN update-alternatives --install /usr/bin/cpp cpp /usr/bin/cpp-12 12
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 13 \
+  --slave /usr/bin/g++ g++ /usr/bin/g++-13 \
+  --slave /usr/bin/gcov gcov /usr/bin/gcov-13 \
+  --slave /usr/bin/gcov-dump gcov-dump /usr/bin/gcov-dump-13 \
+  --slave /usr/bin/gcov-tool gcov-tool /usr/bin/gcov-tool-13
+RUN update-alternatives --remove cpp /usr/bin/cpp && \
+    update-alternatives --install /usr/bin/cpp cpp /usr/bin/cpp-13 13
 
-RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-16 1000 \
-  --slave /usr/bin/clang++ clang++ /usr/bin/clang++-16 \
-  --slave /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-16 \
-  --slave /usr/bin/clang-format clang-format /usr/bin/clang-format-16 \
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 1000 \
+  --slave /usr/bin/clang++ clang++ /usr/bin/clang++-17 \
+  --slave /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-17 \
+  --slave /usr/bin/clang-format clang-format /usr/bin/clang-format-17 \
   --slave /usr/bin/run-clang-tidy run-clang-tidy.py \
-        /usr/bin/run-clang-tidy-16 \
-  --slave /usr/bin/scan-build scan-build /usr/bin/scan-build-16
+        /usr/bin/run-clang-tidy-17 \
+  --slave /usr/bin/scan-build scan-build /usr/bin/scan-build-17
 
 """
 
@@ -857,7 +875,7 @@ RUN pip3 install --break-system-packages \
         inflection \
         isort \
         jsonschema \
-        meson==1.1.1 \
+        meson==1.2.3 \
         protobuf \
         requests
 
