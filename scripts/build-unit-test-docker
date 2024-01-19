@@ -221,6 +221,15 @@ packages = {
             "-Dtests=disabled",
         ],
     ),
+    "ibm-openbmc/ibm-acf": PackageDef(
+        depends=[
+            "openbmc/sdbusplus",
+        ],
+        build_type="meson",
+        config_flags=[
+            "-Dtests=disabled",
+        ],
+    ),
     "openbmc/libpeci": PackageDef(
         build_type="meson",
         config_flags=[
@@ -831,6 +840,7 @@ RUN apt-get update && apt-get dist-upgrade -yy && apt-get install -yy \
     libgpiod-dev \
     libi2c-dev \
     libjpeg-dev \
+    libjsmn-dev \
     libjson-perl \
     libldap2-dev \
     libmimetic-dev \
