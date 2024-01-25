@@ -444,6 +444,8 @@ FROM {docker_base_img_name}
         for line in lookup.split("\n"):
             if f"refs/heads/{branch}" in line:
                 self.pkg_def["rev"] = line.split()[0]
+                # Stop on first found match
+                break;
             elif (
                 "refs/heads/master" in line or "refs/heads/main" in line
             ) and "rev" not in self.pkg_def:
