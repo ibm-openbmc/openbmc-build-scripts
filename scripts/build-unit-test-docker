@@ -35,7 +35,7 @@ from hashlib import sha256
 # typing.Dict is used for type-hints.
 from typing import Any, Callable, Dict, Iterable, Optional  # noqa: F401
 
-from sh import git, nproc  # type: ignore
+from sh import git, nproc, uname  # type: ignore
 
 try:
     # System may have docker or it may have podman, try docker first
@@ -66,6 +66,13 @@ except Exception:
 prefix = "/usr/local"
 proc_count = nproc().strip()
 
+# Determine the library path based on architecture
+arch = uname("-m").strip()
+if arch == "ppc64le":
+    libbase = "powerpc64le-linux-gnu/"
+else:
+    # All others use architecture name
+    libbase = f"{arch}-linux-gnu/"
 
 class PackageDef(TypedDict, total=False):
     """Package Definition for packages dictionary."""
@@ -178,6 +185,25 @@ packages = {
         rev="json-c-0.17-20230812",
         build_type="cmake",
     ),
+    "linux-audit/audit-userspace": PackageDef(
+        rev="3.1.2",
+        url=(
+            lambda pkg, rev: f"https://github.com/{pkg}/archive/refs/tags/v{rev}.tar.gz"
+        ),
+        build_type="make",
+        custom_post_dl=["./autogen.sh",
+        f"./configure --prefix={prefix} \
+                --exec-prefix={prefix} \
+                --libdir={prefix}/lib/{libbase} \
+                --enable-gssapi-krb5=no \
+                --with-libcap-ng=no \
+                --with-python3=no \
+                --with-python=no \
+                --without-golang \
+                --disable-zos-remote \
+                --with-arm=no \
+                --with-aarch64=yes"],
+    ),
     "LibVNC/libvncserver": PackageDef(
         rev="LibVNCServer-0.9.14",
         build_type="cmake",
@@ -210,6 +236,7 @@ packages = {
     "openbmc/phosphor-logging": PackageDef(
         depends=[
             "USCiLab/cereal",
+            "linux-audit/audit-userspace",
             "ibm-openbmc/phosphor-dbus-interfaces",
             "openbmc/sdbusplus",
             "openbmc/sdeventplus",
@@ -740,6 +767,20 @@ if username == "root":
     homedir = "/root"
     gid = 0
     uid = 0
+
+# Determine the architecture for Docker.
+if arch == "ppc64le":
+    docker_base = "ppc64le/"
+elif arch == "x86_64":
+    docker_base = ""
+elif arch == "aarch64":
+    docker_base = "arm64v8/"
+else:
+    print(
+        f"Unsupported system architecture({arch}) found for docker image",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 # Special flags if setting up a deb mirror.
 mirror = ""
