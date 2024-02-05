@@ -46,6 +46,13 @@ except Exception:
 prefix = "/usr/local"
 proc_count = nproc().strip()
 
+# Determine the library path based on architecture
+arch = uname("-m").strip()
+if arch == "ppc64le":
+    libbase = "powerpc64le-linux-gnu/"
+else:
+    # All others use architecture name
+    libbase = f"{arch}-linux-gnu/"
 
 class PackageDef(TypedDict, total=False):
     """Package Definition for packages dictionary."""
@@ -165,8 +172,10 @@ packages = {
         ),
         build_type="make",
         custom_post_dl=["./autogen.sh",
-        f"./configure --prefix={prefix} --enable-gssapi-krb5=no \
-                --libdir={prefix}/lib/x86_64-linux-gnu \
+        f"./configure --prefix={prefix} \
+                --exec-prefix={prefix} \
+                --libdir={prefix}/lib/{libbase} \
+                --enable-gssapi-krb5=no \
                 --with-libcap-ng=no \
                 --with-python3=no \
                 --with-python=no \
@@ -695,7 +704,6 @@ if username == "root":
     uid = 0
 
 # Determine the architecture for Docker.
-arch = uname("-m").strip()
 if arch == "ppc64le":
     docker_base = "ppc64le/"
 elif arch == "x86_64":
