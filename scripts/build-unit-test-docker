@@ -164,6 +164,23 @@ packages = {
         rev="json-c-0.17-20230812",
         build_type="cmake",
     ),
+    "linux-audit/audit-userspace": PackageDef(
+        rev="3.1.2",
+        url=(
+            lambda pkg, rev: f"https://github.com/{pkg}/archive/refs/tags/v{rev}.tar.gz"
+        ),
+        build_type="make",
+        custom_post_dl=["./autogen.sh",
+        f"./configure --prefix={prefix} --enable-gssapi-krb5=no \
+                --libdir={prefix}/lib/x86_64-linux-gnu \
+                --with-libcap-ng=no \
+                --with-python3=no \
+                --with-python=no \
+                --without-golang \
+                --disable-zos-remote \
+                --with-arm=no \
+                --with-aarch64=yes"],
+    ),
     "LibVNC/libvncserver": PackageDef(
         rev="LibVNCServer-0.9.14",
         build_type="cmake",
@@ -196,6 +213,7 @@ packages = {
     "openbmc/phosphor-logging": PackageDef(
         depends=[
             "USCiLab/cereal",
+            "linux-audit/audit-userspace",
             "ibm-openbmc/phosphor-dbus-interfaces",
             "openbmc/sdbusplus",
             "openbmc/sdeventplus",
