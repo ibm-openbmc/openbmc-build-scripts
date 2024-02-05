@@ -35,7 +35,7 @@ from hashlib import sha256
 # typing.Dict is used for type-hints.
 from typing import Any, Callable, Dict, Iterable, Optional  # noqa: F401
 
-from sh import docker, git, nproc  # type: ignore
+from sh import docker, git, nproc, uname  # type: ignore
 
 try:
     # Python before 3.8 doesn't have TypedDict, so reroute to standard 'dict'.
@@ -52,6 +52,13 @@ except Exception:
 prefix = "/usr/local"
 proc_count = nproc().strip()
 
+# Determine the library path based on architecture
+arch = uname("-m").strip()
+if arch == "ppc64le":
+    libbase = "powerpc64le-linux-gnu/"
+else:
+    # All others use architecture name
+    libbase = f"{arch}-linux-gnu/"
 
 class PackageDef(TypedDict, total=False):
     """Package Definition for packages dictionary."""
@@ -171,8 +178,10 @@ packages = {
         ),
         build_type="make",
         custom_post_dl=["./autogen.sh",
-        f"./configure --prefix={prefix} --enable-gssapi-krb5=no \
-                --libdir={prefix}/lib/x86_64-linux-gnu \
+        f"./configure --prefix={prefix} \
+                --exec-prefix={prefix} \
+                --libdir={prefix}/lib/{libbase} \
+                --enable-gssapi-krb5=no \
                 --with-libcap-ng=no \
                 --with-python3=no \
                 --with-python=no \
