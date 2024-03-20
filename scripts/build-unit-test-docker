@@ -46,6 +46,13 @@ except Exception:
 prefix = "/usr/local"
 proc_count = nproc().strip()
 
+# Determine the library path based on architecture
+arch = uname("-m").strip()
+if arch == "ppc64le":
+    libbase = "powerpc64le-linux-gnu/"
+else:
+    # All others use architecture name
+    libbase = f"{arch}-linux-gnu/"
 
 class PackageDef(TypedDict, total=False):
     """Package Definition for packages dictionary."""
@@ -158,6 +165,25 @@ packages = {
         rev="json-c-0.17-20230812",
         build_type="cmake",
     ),
+    "linux-audit/audit-userspace": PackageDef(
+        rev="3.1.2",
+        url=(
+            lambda pkg, rev: f"https://github.com/{pkg}/archive/refs/tags/v{rev}.tar.gz"
+        ),
+        build_type="make",
+        custom_post_dl=["./autogen.sh",
+        f"./configure --prefix={prefix} \
+                --exec-prefix={prefix} \
+                --libdir={prefix}/lib/{libbase} \
+                --enable-gssapi-krb5=no \
+                --with-libcap-ng=no \
+                --with-python3=no \
+                --with-python=no \
+                --without-golang \
+                --disable-zos-remote \
+                --with-arm=no \
+                --with-aarch64=yes"],
+    ),
     "linux-test-project/lcov": PackageDef(
         rev="v1.16",
         build_type="make",
@@ -195,6 +221,7 @@ packages = {
     "openbmc/phosphor-logging": PackageDef(
         depends=[
             "USCiLab/cereal",
+            "linux-audit/audit-userspace",
             "ibm-openbmc/phosphor-dbus-interfaces",
             "openbmc/sdbusplus",
             "openbmc/sdeventplus",
@@ -675,7 +702,6 @@ if username == "root":
     uid = 0
 
 # Determine the architecture for Docker.
-arch = uname("-m").strip()
 if arch == "ppc64le":
     docker_base = "ppc64le/"
 elif arch == "x86_64":
