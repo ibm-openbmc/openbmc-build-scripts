@@ -1030,6 +1030,8 @@ RUN apt-get update && apt-get dist-upgrade -yy && apt-get install -yy \
     wget \
     xxd
 
+RUN pip install --break-system-packages --upgrade "git+https://github.com/ibm/detect-secrets.git@master#egg=detect-secrets"
+
 # Add the ubuntu-toolchain-r repository for later versions of GCC and install.
 RUN add-apt-repository ppa:ubuntu-toolchain-r/ppa && \
     apt-get update && \
