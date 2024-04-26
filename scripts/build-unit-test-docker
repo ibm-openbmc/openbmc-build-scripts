@@ -941,11 +941,14 @@ RUN apt-get update && apt-get dist-upgrade -yy && apt-get install -yy \
     wget \
     xxd
 
+RUN pip install --break-system-packages --upgrade "git+https://github.com/ibm/detect-secrets.git@master#egg=detect-secrets"
+
 RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14 \
   --slave /usr/bin/g++ g++ /usr/bin/g++-14 \
   --slave /usr/bin/gcov gcov /usr/bin/gcov-14 \
   --slave /usr/bin/gcov-dump gcov-dump /usr/bin/gcov-dump-14 \
   --slave /usr/bin/gcov-tool gcov-tool /usr/bin/gcov-tool-14
+
 RUN update-alternatives --remove cpp /usr/bin/cpp && \
     update-alternatives --install /usr/bin/cpp cpp /usr/bin/cpp-14 14
 
