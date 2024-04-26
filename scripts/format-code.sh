@@ -37,6 +37,7 @@ LINTERS_ALL=( \
         markdownlint \
         prettier \
         shellcheck \
+        detect_secrets \
     )
 LINTERS_DISABLED=()
 LINTERS_ENABLED=()
@@ -241,6 +242,13 @@ function do_clang_format() {
     "${CLANG_FORMAT}" -i "$@"
 }
 
+LINTER_REQUIRE+=([detect_secrets]="detect-secrets;.secrets.baseline")
+LINTER_TYPES+=([detect_secrets]="c;cpp;bash;sh;json;python")
+function do_detect_secrets() {
+    detect-secrets scan --update .secrets.baseline
+    detect-secrets audit --report --fail-on-unaudited --fail-on-live --fail-on-audited-real .secrets.baseline
+}
+
 function get_file_type()
 {
     case "$(basename "$1")" in
@@ -397,7 +405,10 @@ fi
 # Check for differences.
 if [ -z "$OPTION_NO_DIFF" ]; then
     echo -e "    ${BLUE}Result differences...${NORMAL}"
-    if ! git --no-pager diff --exit-code ; then
+    # .secrets.baseline will have its date updated everytime we run so
+    # just restore it
+    git restore .secrets.baseline
+    if ! git --no-pager diff --exit-code; then
         echo -e "Format: ${RED}FAILED${NORMAL}"
         exit 1
     else
