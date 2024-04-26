@@ -915,6 +915,8 @@ RUN apt-get update && apt-get dist-upgrade -yy && apt-get install -yy \
     wget \
     xxd
 
+RUN pip install --break-system-packages --upgrade "git+https://github.com/ibm/detect-secrets.git@master#egg=detect-secrets"
+
 RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 13 \
   --slave /usr/bin/g++ g++ /usr/bin/g++-13 \
   --slave /usr/bin/gcov gcov /usr/bin/gcov-13 \
