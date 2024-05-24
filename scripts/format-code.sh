@@ -407,7 +407,10 @@ if [ -z "$OPTION_NO_DIFF" ]; then
     echo -e "    ${BLUE}Result differences...${NORMAL}"
     # .secrets.baseline will have its date updated everytime we run so
     # just restore it
-    git restore .secrets.baseline
+    if [ -e .secrets.baseline ]
+    then
+        git restore .secrets.baseline
+    fi
     if ! git --no-pager diff --exit-code; then
         echo -e "Format: ${RED}FAILED${NORMAL}"
         exit 1
