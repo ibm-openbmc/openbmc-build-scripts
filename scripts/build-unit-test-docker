@@ -262,7 +262,7 @@ packages = {
             "-Draw-peci=disabled",
         ],
     ),
-    "openbmc/libpldm": PackageDef(
+    "ibm-openbmc/libpldm": PackageDef(
         build_type="meson",
         config_flags=[
             "-Dabi=deprecated,stable",
