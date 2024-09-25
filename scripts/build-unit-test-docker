@@ -267,6 +267,9 @@ packages = {
         ],
     ),
     "openbmc/sdbusplus": PackageDef(
+        depends=[
+            "nlohmann/json",
+        ],
         build_type="meson",
         custom_post_dl=[
             "cd tools",
