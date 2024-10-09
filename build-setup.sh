@@ -22,8 +22,8 @@
 #                     build, which will be written into local.conf.
 #                     default is empty.
 #  DOCKER_REG:        <optional, the URL of a docker registry to utilize
-#                     instead of the default docker hub
-#                     (ex. public.ecr.aws/ubuntu or public.ecr.aws/docker/library)
+#                     instead of our default (public.ecr.aws/ubuntu)
+#                     (ex. docker.io or public.ecr.aws/docker/library)
 #
 # Docker Image Build Variables:
 #  BITBAKE_OPTS       Set to "-c populate_sdk" or whatever other BitBake options
@@ -33,7 +33,8 @@
 #                     container, path cannot be located on network storage.
 #                     Default: "$WORKSPACE/build"
 #  distro             The distro used as the base image for the build image:
-#                     fedora|ubuntu
+#                     fedora|ubuntu. Note that if you chose fedora, you will
+#                     need to also update DOCKER_REG to a supported fedora reg.
 #                     Default: "ubuntu"
 #  img_name           The name given to the target build's docker image.
 #                     Default: "openbmc/${distro}:${imgtag}-${target}-${ARCH}"
@@ -87,7 +88,7 @@ WORKSPACE=${WORKSPACE:-${HOME}/${RANDOM}${RANDOM}}
 num_cpu=${num_cpu:-$(nproc)}
 UBUNTU_MIRROR=${UBUNTU_MIRROR:-""}
 ENV_LOCAL_CONF=${ENV_LOCAL_CONF:-""}
-docker_reg=${DOCKER_REG:-"docker.io"}
+docker_reg=${DOCKER_REG:-"public.ecr.aws/ubuntu"}
 
 # Docker Image Build Variables:
 build_dir=${build_dir:-${WORKSPACE}/build}
