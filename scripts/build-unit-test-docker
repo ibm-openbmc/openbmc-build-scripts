@@ -17,13 +17,18 @@
 #   UBUNTU_MIRROR:    <optional, the URL of a mirror of Ubuntu to override the
 #                     default ones in /etc/apt/sources.list>
 #                     default is empty, and no mirror is used.
+#   DOCKER_REG:       <optional, the URL of a docker registry to utilize
+#                     instead of our default (public.ecr.aws/ubuntu)
+#                     (ex. docker.io)
 #   http_proxy        The HTTP address of the proxy server to connect to.
 #                     Default: "", proxy is not setup if this is not set
 
+import json
 import os
 import re
 import sys
 import threading
+import urllib.request
 from datetime import date
 from hashlib import sha256
 
@@ -443,10 +448,64 @@ FROM {docker_base_img_name}
             depcache += "%s:%s," % (pkg, cls.packages[pkg]["rev"])
         return depcache
 
+    def _check_gerrit_topic(self) -> bool:
+        if not gerrit_topic:
+            return False
+        if not self.package.startswith("openbmc/"):
+            return False
+        if gerrit_project == self.package and gerrit_rev:
+            return False
+
+        try:
+            commits = json.loads(
+                urllib.request.urlopen(
+                    f"https://gerrit.openbmc.org/changes/?q=status:open+project:{self.package}+topic:{gerrit_topic}"
+                )
+                .read()
+                .splitlines()[-1]
+            )
+
+            if len(commits) == 0:
+                return False
+            if len(commits) > 1:
+                print(
+                    f"{self.package} has more than 1 commit under {gerrit_topic}; using lastest upstream: {len(commits)}",
+                    file=sys.stderr,
+                )
+                return False
+
+            change_id = commits[0]["id"]
+
+            commit = json.loads(
+                urllib.request.urlopen(
+                    f"https://gerrit.openbmc.org/changes/{change_id}/revisions/current/commit"
+                )
+                .read()
+                .splitlines()[-1]
+            )["commit"]
+
+            print(
+                f"Using {commit} from {gerrit_topic} for {self.package}",
+                file=sys.stderr,
+            )
+            self.pkg_def["rev"] = commit
+            return True
+
+        except urllib.error.HTTPError as e:
+            print(
+                f"Error loading topic {gerrit_topic} for {self.package}: ",
+                e,
+                file=sys.stderr,
+            )
+            return False
+
     def _update_rev(self) -> None:
         """Look up the HEAD for missing a static rev."""
 
         if "rev" in self.pkg_def:
+            return
+
+        if self._check_gerrit_topic():
             return
 
         # Check if Jenkins/Gerrit gave us a revision and use it.
@@ -681,10 +740,12 @@ is_automated_ci_build = os.environ.get("BUILD_URL", False)
 distro = os.environ.get("DISTRO", "ubuntu:noble")
 branch = os.environ.get("BRANCH", "master")
 ubuntu_mirror = os.environ.get("UBUNTU_MIRROR")
+docker_reg = os.environ.get("DOCKER_REG", "public.ecr.aws/ubuntu")
 http_proxy = os.environ.get("http_proxy")
 
 gerrit_project = os.environ.get("GERRIT_PROJECT")
 gerrit_rev = os.environ.get("GERRIT_PATCHSET_REVISION")
+gerrit_topic = os.environ.get("GERRIT_TOPIC")
 
 # Ensure appropriate docker build output to see progress and identify
 # any issues
@@ -701,20 +762,6 @@ if username == "root":
     homedir = "/root"
     gid = 0
     uid = 0
-
-# Determine the architecture for Docker.
-if arch == "ppc64le":
-    docker_base = "ppc64le/"
-elif arch == "x86_64":
-    docker_base = ""
-elif arch == "aarch64":
-    docker_base = "arm64v8/"
-else:
-    print(
-        f"Unsupported system architecture({arch}) found for docker image",
-        file=sys.stderr,
-    )
-    sys.exit(1)
 
 # Special flags if setting up a deb mirror.
 mirror = ""
@@ -759,7 +806,7 @@ RUN echo "[http]" >> {homedir}/.gitconfig && \
 
 # Create base Dockerfile.
 dockerfile_base = f"""
-FROM {docker_base}{distro}
+FROM {docker_reg}/{distro}
 
 {mirror}
 
@@ -810,12 +857,14 @@ RUN apt-get update && apt-get dist-upgrade -yy && apt-get install -yy \
     g++-13 \
     gcc-13 \
     git \
+    glib-2.0 \
     gnupg \
     iproute2 \
     iputils-ping \
     libaudit-dev \
     libc6-dbg \
     libc6-dev \
+    libcjson-dev \
     libconfig++-dev \
     libcryptsetup-dev \
     libdbus-1-dev \

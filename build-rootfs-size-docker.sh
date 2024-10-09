@@ -9,6 +9,9 @@
 #   UBUNTU_MIRROR:    [optional] The URL of a mirror of Ubuntu to override the
 #                     default ones in /etc/apt/sources.list
 #                     default is empty, and no mirror is used.
+#   DOCKER_REG:       <optional, the URL of a docker registry to utilize
+#                     instead of our default (public.ecr.aws/ubuntu)
+#                     (ex. docker.io)
 #   http_proxy:       The HTTP address of the proxy server to connect to.
 #                     Default: "", proxy is not setup if this is not set
 
@@ -19,23 +22,7 @@ set -uo pipefail
 
 DOCKER_IMG_NAME=${DOCKER_IMG_NAME:-"openbmc/ubuntu-rootfs-size"}
 DISTRO=${DISTRO:-"ubuntu:bionic"}
-
-# Determine the architecture
-ARCH=$(uname -m)
-case ${ARCH} in
-    "ppc64le")
-        DOCKER_BASE="ppc64le/"
-        ;;
-    "x86_64")
-        DOCKER_BASE=""
-        ;;
-    "aarch64")
-        DOCKER_BASE="arm64v8/"
-        ;;
-    *)
-        echo "Unsupported system architecture(${ARCH}) found for docker image"
-        exit 1
-esac
+docker_reg=${DOCKER_REG:-"public.ecr.aws/ubuntu"}
 
 PROXY=""
 
@@ -57,7 +44,7 @@ if [[ "${DISTRO}" == "ubuntu"* ]]; then
     fi
 
     Dockerfile=$(cat << EOF
-FROM ${DOCKER_BASE}${DISTRO}
+FROM ${docker_reg}/${DISTRO}
 
 ${PROXY}
 ${MIRROR}
