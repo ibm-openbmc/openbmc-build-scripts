@@ -21,6 +21,9 @@
 #  ENV_LOCAL_CONF     [optional] The environment variables to inject into the
 #                     build, which will be written into local.conf.
 #                     default is empty.
+#  DOCKER_REG:        <optional, the URL of a docker registry to utilize
+#                     instead of our default (public.ecr.aws/ubuntu)
+#                     (ex. docker.io or public.ecr.aws/docker/library)
 #
 # Docker Image Build Variables:
 #  BITBAKE_OPTS       Set to "-c populate_sdk" or whatever other BitBake options
@@ -30,7 +33,8 @@
 #                     container, path cannot be located on network storage.
 #                     Default: "$WORKSPACE/build"
 #  distro             The distro used as the base image for the build image:
-#                     fedora|ubuntu
+#                     fedora|ubuntu. Note that if you chose fedora, you will
+#                     need to also update DOCKER_REG to a supported fedora reg.
 #                     Default: "ubuntu"
 #  img_name           The name given to the target build's docker image.
 #                     Default: "openbmc/${distro}:${imgtag}-${target}-${ARCH}"
@@ -84,6 +88,7 @@ WORKSPACE=${WORKSPACE:-${HOME}/${RANDOM}${RANDOM}}
 num_cpu=${num_cpu:-$(nproc)}
 UBUNTU_MIRROR=${UBUNTU_MIRROR:-""}
 ENV_LOCAL_CONF=${ENV_LOCAL_CONF:-""}
+docker_reg=${DOCKER_REG:-"public.ecr.aws/ubuntu"}
 
 # Docker Image Build Variables:
 build_dir=${build_dir:-${WORKSPACE}/build}
@@ -111,25 +116,6 @@ if [[ -n "${UBUNTU_MIRROR}" ]]; then
         echo \"deb ${UBUNTU_MIRROR} \$(. /etc/os-release && echo \$VERSION_CODENAME)-proposed main restricted universe multiverse\" >> /etc/apt/sources.list && \
         echo \"deb ${UBUNTU_MIRROR} \$(. /etc/os-release && echo \$VERSION_CODENAME)-backports main restricted universe multiverse\" >> /etc/apt/sources.list"
 fi
-
-# Determine the architecture
-ARCH=$(uname -m)
-
-# Determine the prefix of the Dockerfile's base image
-case ${ARCH} in
-    "ppc64le")
-        DOCKER_BASE="ppc64le/"
-        ;;
-    "x86_64")
-        DOCKER_BASE=""
-        ;;
-    "aarch64")
-        DOCKER_BASE="arm64v8/"
-        ;;
-    *)
-        echo "Unsupported system architecture(${ARCH}) found for docker image"
-        exit 1
-esac
 
 # Timestamp for job
 echo "Build started, $(date)"
@@ -173,7 +159,7 @@ if [[ "${distro}" == fedora ]];then
     fi
 
     Dockerfile=$(cat << EOF
-  FROM ${DOCKER_BASE}${distro}:${img_tag}
+  FROM ${docker_reg}/${distro}:${img_tag}
 
   ${PROXY}
 
@@ -227,7 +213,7 @@ elif [[ "${distro}" == ubuntu ]]; then
     fi
 
     Dockerfile=$(cat << EOF
-  FROM ${DOCKER_BASE}${distro}:${img_tag}
+  FROM ${docker_reg}/${distro}:${img_tag}
 
   ${PROXY}
   ${MIRROR}

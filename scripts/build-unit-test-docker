@@ -17,6 +17,9 @@
 #   UBUNTU_MIRROR:    <optional, the URL of a mirror of Ubuntu to override the
 #                     default ones in /etc/apt/sources.list>
 #                     default is empty, and no mirror is used.
+#   DOCKER_REG:       <optional, the URL of a docker registry to utilize
+#                     instead of our default (public.ecr.aws/ubuntu)
+#                     (ex. docker.io)
 #   http_proxy        The HTTP address of the proxy server to connect to.
 #                     Default: "", proxy is not setup if this is not set
 
@@ -676,6 +679,7 @@ is_automated_ci_build = os.environ.get("BUILD_URL", False)
 distro = os.environ.get("DISTRO", "ubuntu:noble")
 branch = os.environ.get("BRANCH", "master")
 ubuntu_mirror = os.environ.get("UBUNTU_MIRROR")
+docker_reg = os.environ.get("DOCKER_REG", "public.ecr.aws/ubuntu")
 http_proxy = os.environ.get("http_proxy")
 
 gerrit_project = os.environ.get("GERRIT_PROJECT")
@@ -696,20 +700,6 @@ if username == "root":
     homedir = "/root"
     gid = 0
     uid = 0
-
-# Determine the architecture for Docker.
-if arch == "ppc64le":
-    docker_base = "ppc64le/"
-elif arch == "x86_64":
-    docker_base = ""
-elif arch == "aarch64":
-    docker_base = "arm64v8/"
-else:
-    print(
-        f"Unsupported system architecture({arch}) found for docker image",
-        file=sys.stderr,
-    )
-    sys.exit(1)
 
 # Special flags if setting up a deb mirror.
 mirror = ""
@@ -754,7 +744,7 @@ RUN echo "[http]" >> {homedir}/.gitconfig && \
 
 # Create base Dockerfile.
 dockerfile_base = f"""
-FROM {docker_base}{distro}
+FROM {docker_reg}/{distro}
 
 {mirror}
 

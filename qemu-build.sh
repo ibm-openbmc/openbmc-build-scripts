@@ -21,6 +21,9 @@
 #                     Default: "", proxy is not setup if this is not set
 #  WORKSPACE          Path of the workspace directory where the build will
 #                     occur, and output artifacts will be produced.
+#  DOCKER_REG:        <optional, the URL of a docker registry to utilize
+#                     instead of our default (public.ecr.aws/ubuntu)
+#                     (ex. docker.io)
 #
 ###############################################################################
 # Trace bash processing
@@ -34,8 +37,7 @@ if [ -z ${WORKSPACE+x} ]; then
     exit 1
 fi
 
-# Determine the architecture
-ARCH=$(uname -m)
+docker_reg=${DOCKER_REG:-"public.ecr.aws/ubuntu"}
 
 # Docker Image Build Variables:
 img_name=qemu-build
@@ -47,22 +49,6 @@ echo "Build started, $(date)"
 if [[ -n "${http_proxy}" ]]; then
     PROXY="RUN echo \"Acquire::http::Proxy \\"\"${http_proxy}/\\"\";\" > /etc/apt/apt.conf.d/000apt-cacher-ng-proxy"
 fi
-
-# Determine the prefix of the Dockerfile's base image
-case ${ARCH} in
-    "ppc64le")
-        DOCKER_BASE="ppc64le/"
-        ;;
-    "x86_64")
-        DOCKER_BASE=""
-        ;;
-    "aarch64")
-        DOCKER_BASE="arm64v8/"
-        ;;
-    *)
-        echo "Unsupported system architecture(${ARCH}) found for docker image"
-        exit 1
-esac
 
 # Create the docker run script
 export PROXY_HOST=${http_proxy/#http*:\/\/}
@@ -108,7 +94,7 @@ chmod a+x "${WORKSPACE}"/build.sh
 # !!!
 
 Dockerfile=$(cat << EOF
-FROM ${DOCKER_BASE}ubuntu:jammy
+FROM ${docker_reg}/ubuntu:jammy
 
 ${PROXY}
 
