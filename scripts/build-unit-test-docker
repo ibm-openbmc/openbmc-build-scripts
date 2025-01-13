@@ -17,6 +17,9 @@
 #   UBUNTU_MIRROR:    <optional, the URL of a mirror of Ubuntu to override the
 #                     default ones in /etc/apt/sources.list>
 #                     default is empty, and no mirror is used.
+#   DOCKER_REG:       <optional, the URL of a docker registry to utilize
+#                     instead of our default (public.ecr.aws/ubuntu)
+#                     (ex. docker.io)
 #   http_proxy        The HTTP address of the proxy server to connect to.
 #                     Default: "", proxy is not setup if this is not set
 
@@ -29,7 +32,7 @@ from hashlib import sha256
 # typing.Dict is used for type-hints.
 from typing import Any, Callable, Dict, Iterable, Optional  # noqa: F401
 
-from sh import docker, git, nproc, uname  # type: ignore
+from sh import docker, git, nproc  # type: ignore
 
 try:
     # Python before 3.8 doesn't have TypedDict, so reroute to standard 'dict'.
@@ -82,15 +85,11 @@ packages = {
     "boost": PackageDef(
         rev="1.82.0",
         url=(
-            lambda pkg, rev: f"https://boostorg.jfrog.io/artifactory/main/release/{rev}/source/{pkg}_{rev.replace('.', '_')}.tar.gz"  # noqa: E501
+            lambda pkg, rev: f"https://github.com/boostorg/{pkg}/releases/download/{pkg}-{rev}/{pkg}-{rev}.tar.gz"
         ),
         build_type="custom",
         build_steps=[
             (
-                "wget"
-                " https://github.com/williamspatrick/beast/commit/98f8b1fbd059a35754c2c7b2841769cf8d021272.patch"
-                " && patch -p2 <"
-                " 98f8b1fbd059a35754c2c7b2841769cf8d021272.patch &&"
                 " ./bootstrap.sh"
                 f" --prefix={prefix} --with-libraries=context,coroutine"
             ),
@@ -640,6 +639,7 @@ is_automated_ci_build = os.environ.get("BUILD_URL", False)
 distro = os.environ.get("DISTRO", "ubuntu:noble")
 branch = os.environ.get("BRANCH", "master")
 ubuntu_mirror = os.environ.get("UBUNTU_MIRROR")
+docker_reg = os.environ.get("DOCKER_REG", "public.ecr.aws/ubuntu")
 http_proxy = os.environ.get("http_proxy")
 
 gerrit_project = os.environ.get("GERRIT_PROJECT")
@@ -660,21 +660,6 @@ if username == "root":
     homedir = "/root"
     gid = 0
     uid = 0
-
-# Determine the architecture for Docker.
-arch = uname("-m").strip()
-if arch == "ppc64le":
-    docker_base = "ppc64le/"
-elif arch == "x86_64":
-    docker_base = ""
-elif arch == "aarch64":
-    docker_base = "arm64v8/"
-else:
-    print(
-        f"Unsupported system architecture({arch}) found for docker image",
-        file=sys.stderr,
-    )
-    sys.exit(1)
 
 # Special flags if setting up a deb mirror.
 mirror = ""
@@ -719,7 +704,7 @@ RUN echo "[http]" >> {homedir}/.gitconfig && \
 
 # Create base Dockerfile.
 dockerfile_base = f"""
-FROM {docker_base}{distro}
+FROM {docker_reg}/{distro}
 
 {mirror}
 
