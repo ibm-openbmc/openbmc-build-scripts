@@ -35,7 +35,21 @@ from hashlib import sha256
 # typing.Dict is used for type-hints.
 from typing import Any, Callable, Dict, Iterable, Optional  # noqa: F401
 
-from sh import docker, git, nproc, uname  # type: ignore
+from sh import git, nproc, uname  # type: ignore
+
+try:
+    # System may have docker or it may have podman, try docker first
+    from sh import docker
+
+    container = docker
+except ImportError:
+    try:
+        from sh import podman
+
+        container = podman
+    except Exception:
+        print("No docker or podman found on system")
+        exit(1)
 
 try:
     # Python before 3.8 doesn't have TypedDict, so reroute to standard 'dict'.
@@ -695,7 +709,9 @@ class Docker:
 
         # If we're not forcing builds, check if it already exists and skip.
         if not force_build:
-            if docker.image.ls(tag, "--format", '"{{.Repository}}:{{.Tag}}"'):
+            if container.image.ls(
+                tag, "--format", '"{{.Repository}}:{{.Tag}}"'
+            ):
                 print(
                     f"Image {tag} already exists.  Skipping.", file=sys.stderr
                 )
@@ -710,7 +726,7 @@ class Docker:
         #   Other unusual flags:
         #       --no-cache: Bypass the Docker cache if 'force_build'.
         #       --force-rm: Clean up Docker processes if they fail.
-        docker.build(
+        container.build(
             proxy_args,
             "--network=host",
             "--force-rm",
@@ -937,21 +953,21 @@ RUN update-alternatives --remove cpp /usr/bin/cpp && \
     update-alternatives --install /usr/bin/cpp cpp /usr/bin/cpp-13 13
 
 # Set up LLVM apt repository.
-RUN bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" 18
+RUN bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" -- 19
 
 # Install extra clang tools
-RUN apt-get install \
-        clang-18 \
-        clang-format-18 \
-        clang-tidy-18
+RUN apt-get install -y \
+        clang-19 \
+        clang-format-19 \
+        clang-tidy-19
 
-RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 1000 \
-  --slave /usr/bin/clang++ clang++ /usr/bin/clang++-18 \
-  --slave /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-18 \
-  --slave /usr/bin/clang-format clang-format /usr/bin/clang-format-18 \
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-19 1000 \
+  --slave /usr/bin/clang++ clang++ /usr/bin/clang++-19 \
+  --slave /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-19 \
+  --slave /usr/bin/clang-format clang-format /usr/bin/clang-format-19 \
   --slave /usr/bin/run-clang-tidy run-clang-tidy.py \
-        /usr/bin/run-clang-tidy-18 \
-  --slave /usr/bin/scan-build scan-build /usr/bin/scan-build-18
+        /usr/bin/run-clang-tidy-19 \
+  --slave /usr/bin/scan-build scan-build /usr/bin/scan-build-19
 
 """
 
