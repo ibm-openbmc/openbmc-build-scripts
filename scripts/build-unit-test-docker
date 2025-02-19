@@ -155,6 +155,13 @@ packages = {
             f"cp include/function2/function2.hpp {prefix}/include/function2/",
         ],
     ),
+    "zserge/jsmn": PackageDef(
+        rev="v1.1.0",
+        build_type="custom",
+        build_steps=[
+            f"cp jsmn.h {prefix}/include/",
+        ],
+    ),
     "google/googletest": PackageDef(
         rev="v1.15.2",
         build_type="cmake",
@@ -232,6 +239,10 @@ packages = {
         depends=["openbmc/sdbusplus"],
         build_type="meson",
         config_flags=["-Dgenerate_md=false"],
+    ),
+    "ibm-openbmc/ibm-acf": PackageDef(
+        depends=["openbmc/sdbusplus", "zserge/jsmn"],
+        build_type="meson",
     ),
     "openbmc/phosphor-logging": PackageDef(
         depends=[
