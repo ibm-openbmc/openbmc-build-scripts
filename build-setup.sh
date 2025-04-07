@@ -240,6 +240,8 @@ elif [[ "${distro}" == ubuntu ]]; then
       libthread-queue-any-perl \
       locales \
       python3 \
+      python3-dev \
+      python3-setuptools \
       socat \
       subversion \
       texinfo \
