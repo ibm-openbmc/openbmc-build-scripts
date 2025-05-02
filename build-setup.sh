@@ -264,6 +264,9 @@ elif [[ "${distro}" == ubuntu ]]; then
       wget \
       zstd
 
+  # Setup git lfs
+  RUN git lfs install
+
   # Set the locale
   RUN locale-gen en_US.UTF-8
   ENV LANG=en_US.UTF-8
