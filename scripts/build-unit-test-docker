@@ -297,6 +297,7 @@ packages = {
         ],
     ),
     "openbmc/phosphor-objmgr": PackageDef(
+        rev="fcae52617d56810ab6083395bd2d11073b175b19",
         depends=[
             "CLIUtils/CLI11",
             "boost",
