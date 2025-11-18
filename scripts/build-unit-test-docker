@@ -244,12 +244,12 @@ packages = {
         ],
     ),
     "ibm-openbmc/phosphor-dbus-interfaces": PackageDef(
-        depends=["openbmc/sdbusplus"],
+        depends=["ibm-openbmc/sdbusplus"],
         build_type="meson",
         config_flags=["-Dgenerate_md=false"],
     ),
     "ibm-openbmc/ibm-acf": PackageDef(
-        depends=["openbmc/sdbusplus", "zserge/jsmn"],
+        depends=["ibm-openbmc/sdbusplus", "zserge/jsmn"],
         build_type="meson",
     ),
     "openbmc/phosphor-logging": PackageDef(
@@ -257,7 +257,7 @@ packages = {
             "USCiLab/cereal",
             "linux-audit/audit-userspace",
             "ibm-openbmc/phosphor-dbus-interfaces",
-            "openbmc/sdbusplus",
+            "ibm-openbmc/sdbusplus",
             "openbmc/sdeventplus",
         ],
         build_type="meson",
@@ -274,7 +274,7 @@ packages = {
             "leethomason/tinyxml2",
             "ibm-openbmc/phosphor-dbus-interfaces",
             "openbmc/phosphor-logging",
-            "openbmc/sdbusplus",
+            "ibm-openbmc/sdbusplus",
         ],
         build_type="meson",
         config_flags=[
@@ -295,7 +295,7 @@ packages = {
             "-Dabi-compliance-check=false",
         ],
     ),
-    "openbmc/sdbusplus": PackageDef(
+    "ibm-openbmc/sdbusplus": PackageDef(
         depends=[
             "nlohmann/json",
         ],
