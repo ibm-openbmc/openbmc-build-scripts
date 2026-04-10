@@ -252,7 +252,7 @@ packages = {
         depends=["ibm-openbmc/sdbusplus", "zserge/jsmn"],
         build_type="meson",
     ),
-    "openbmc/phosphor-logging": PackageDef(
+    "ibm-openbmc/phosphor-logging": PackageDef(
         depends=[
             "USCiLab/cereal",
             "linux-audit/audit-userspace",
@@ -273,7 +273,7 @@ packages = {
             "boost",
             "leethomason/tinyxml2",
             "ibm-openbmc/phosphor-dbus-interfaces",
-            "openbmc/phosphor-logging",
+            "ibm-openbmc/phosphor-logging",
             "ibm-openbmc/sdbusplus",
         ],
         build_type="meson",
