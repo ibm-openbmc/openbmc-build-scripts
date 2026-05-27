@@ -773,7 +773,7 @@ force_build = os.environ.get("FORCE_DOCKER_BUILD")
 is_automated_ci_build = os.environ.get("BUILD_URL", False)
 distro = os.environ.get("DISTRO", "ubuntu:plucky")
 branch = os.environ.get("BRANCH", "master")
-ubuntu_mirror = os.environ.get("UBUNTU_MIRROR")
+ubuntu_mirror = os.environ.get("UBUNTU_MIRROR") or "https://mirrors.edge.kernel.org/ubuntu/"
 docker_reg = os.environ.get("DOCKER_REG", "public.ecr.aws/ubuntu")
 http_proxy = os.environ.get("http_proxy")
 
