@@ -86,7 +86,7 @@ build_scripts_dir=${build_scripts_dir:-"$( cd "$( dirname "${BASH_SOURCE[0]}" )"
 http_proxy=${http_proxy:-}
 WORKSPACE=${WORKSPACE:-${HOME}/${RANDOM}${RANDOM}}
 num_cpu=${num_cpu:-$(nproc)}
-UBUNTU_MIRROR=${UBUNTU_MIRROR:-""}
+UBUNTU_MIRROR=${UBUNTU_MIRROR:-"https://mirrors.edge.kernel.org/ubuntu/"}
 ENV_LOCAL_CONF=${ENV_LOCAL_CONF:-""}
 docker_reg=${DOCKER_REG:-"public.ecr.aws/ubuntu"}
 
