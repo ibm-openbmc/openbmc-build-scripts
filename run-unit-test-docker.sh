@@ -28,6 +28,10 @@
 #   EXTRA_UNIT_TEST_ARGS:  Optional, pass arguments to unit-test.py
 #   INTERACTIVE: Optional, run a bash shell instead of unit-test.py
 #   http_proxy: Optional, run the container with proxy environment
+#
+#   CPPCHECK_ONLY:   Optional, run cppcheck only and skip all other tests
+#   FAIL_ON_CPPCHECK_ERROR=[0|1]: Optional, no ci failure even if the cppcheck errors by default
+#
 
 # Trace bash processing. Set -e so when a step fails, we fail the build
 set -uo pipefail
@@ -46,6 +50,10 @@ NO_FORMAT_CODE="${NO_FORMAT_CODE:-}"
 NO_CPPCHECK="${NO_CPPCHECK:-}"
 INTERACTIVE="${INTERACTIVE:-}"
 http_proxy=${http_proxy:-}
+
+CPPCHECK_ONLY="${CPPCHECK_ONLY:-}"
+# Ignore cppcheck error by default
+FAIL_ON_CPPCHECK_ERROR="${FAIL_ON_CPPCHECK_ERROR:-""}"
 
 # Timestamp for job
 echo "Unit test build started, $(date)"
@@ -76,6 +84,8 @@ export DOCKER_IMG_NAME
 # Allow the user to pass options through to unit-test.py:
 #   EXTRA_UNIT_TEST_ARGS="-r 100" ...
 EXTRA_UNIT_TEST_ARGS="${EXTRA_UNIT_TEST_ARGS:+,${EXTRA_UNIT_TEST_ARGS/ /,}}"
+EXTRA_UNIT_TEST_ARGS+=${CPPCHECK_ONLY:+,--cppcheck-only}
+[ "${FAIL_ON_CPPCHECK_ERROR}" == "1" ] && EXTRA_UNIT_TEST_ARGS+=",--fail-on-cppcheck-error"
 
 # Unit test and parameters
 if [ "${INTERACTIVE}" ]; then
