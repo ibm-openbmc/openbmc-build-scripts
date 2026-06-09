@@ -350,6 +350,44 @@ cmake_flags = " ".join(
         "-DCMAKE_MAKE_PROGRAM=ninja",
     ]
 )
+
+# Conditionally add hostfw-src package only if GITHUB_IBM_TOKEN is available
+# This package requires access to IBM's internal GitHub Enterprise (github.ibm.com)
+# To include this package, set the GITHUB_IBM_TOKEN environment variable before running:
+#   export GITHUB_IBM_TOKEN="your_token_here"
+# Without this token, the package will be skipped and the build will continue successfully.
+if os.environ.get("GITHUB_IBM_TOKEN"):
+    packages["hostfw-src"] = PackageDef(
+        url=(
+            lambda pkg, rev: f"https://github.ibm.com/open-power/hostfw-src/archive/{rev}.tar.gz"
+        ),
+        build_type="custom",
+        depends=[
+            "nlohmann/json",
+        ],
+        custom_post_dl=[
+            "pip3 install --break-system-packages --root-user-action=ignore networkx",
+        ],
+        build_steps=[
+            "cd phal",
+            (
+                "PYTHONPATH=$(pwd)/../ekb/public/common/generic/tools/sbe_tools/targeting"
+                f" meson setup builddir --prefix={prefix}"
+                " -Dtests=true -Dbuild_dtb_only=false"
+            ),
+            (
+                "PYTHONPATH=$(pwd)/../ekb/public/common/generic/tools/sbe_tools/targeting"
+                " ninja -C builddir"
+            ),
+            "ninja -C builddir install",
+        ],
+    )
+else:
+    print(
+        "Note: Skipping 'hostfw-src' package (requires GITHUB_IBM_TOKEN for github.ibm.com access)",
+        file=sys.stderr,
+    )
+
 meson_flags = " ".join(
     [
         "--wrap-mode=nodownload",
@@ -541,10 +579,23 @@ FROM {docker_base_img_name}
             self.pkg_def["rev"] = gerrit_rev
             return
 
+        git_url = f"https://github.com/{self.package}"
+        if self.package == "hostfw-src":
+            git_url = "git@github.ibm.com:open-power/hostfw-src.git"
+
         # Ask Github for all the branches.
-        lookup = git(
-            "ls-remote", "--heads", f"https://github.com/{self.package}"
-        )
+        try:
+            lookup = git("ls-remote", "--heads", git_url)
+        except Exception:
+            print(
+                f"Warning: Could not fetch branches for {self.package} from {git_url}",
+                file=sys.stderr,
+            )
+            # If the repository is not accessible (e.g., authentication required),
+            # fall back to the requested branch so custom archive URLs can still
+            # resolve a revision later in _url().
+            self.pkg_def["rev"] = branch
+            return
 
         # Find the branch matching {branch} (or fallback to master).
         #   This section is locked because we are modifying the PackageDef.
@@ -583,21 +634,34 @@ FROM {docker_base_img_name}
                 f"Unhandled download type for {self.package}: {url}"
             )
 
-        cmd = f"curl -L {url} | tar -x"
-
         if url.endswith(".bz2"):
-            cmd += "j"
+            tar_flags = "xj"
         elif url.endswith(".gz"):
-            cmd += "z"
+            tar_flags = "xz"
         else:
             raise NotImplementedError(
                 f"Unknown tar flags needed for {self.package}: {url}"
             )
 
-        return cmd
+        if "github.ibm.com" in url and os.environ.get("GITHUB_IBM_TOKEN", ""):
+            # Use a BuildKit secret mount so the token is never written into
+            # any image layer or printed to the build log.  The secret value
+            # is read inside the container at build time and is not present in
+            # any layer history or build log line.
+            return (
+                f"--mount=type=secret,id=github_ibm_token "
+                f"sh -c 'curl --fail -L "
+                f'-H "Authorization: token $(cat /run/secrets/github_ibm_token)" '
+                f"{url} | tar -{tar_flags}'"
+            )
+
+        return f"curl --fail -L {url} | tar -{tar_flags}"
 
     def _cmd_cd_srcdir(self) -> str:
         """Formulate the command necessary to 'cd' into the source dir."""
+        # Special case for hostfw-src: the archive extracts to hostfw-src-*
+        if self.package == "hostfw-src":
+            return "cd hostfw-src-*"
         return f"cd {self.package.split('/')[-1]}*"
 
     def _df_copycmds(self) -> str:
@@ -747,11 +811,21 @@ class Docker:
         #   Other unusual flags:
         #       --no-cache: Bypass the Docker cache if 'force_build'.
         #       --force-rm: Clean up Docker processes if they fail.
+        #       --secret:   Pass GITHUB_IBM_TOKEN as a BuildKit secret so it
+        #                   is never written into any layer or printed to the
+        #                   build log.
+
+        # Collect optional secret args before the build call.
+        secret_args: list = []
+        if os.environ.get("GITHUB_IBM_TOKEN", ""):
+            secret_args = ["--secret", "id=github_ibm_token,env=GITHUB_IBM_TOKEN"]
+
         container.build(
             proxy_args,
             "--network=host",
             "--force-rm",
             "--no-cache=true" if force_build else "--no-cache=false",
+            *secret_args,
             "-t",
             tag,
             "-",
@@ -762,6 +836,7 @@ class Docker:
                 )
             ),
             _err_to_out=True,
+            _env={**os.environ, "DOCKER_BUILDKIT": "1"},
         )
 
 
@@ -901,6 +976,7 @@ RUN cat /etc/apt/sources.list.d/debug.list
 
 # Create base Dockerfile.
 dockerfile_base = f"""
+# syntax=docker/dockerfile:1
 FROM {docker_reg}/{distro}
 
 {mirror}
