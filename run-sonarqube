@@ -57,8 +57,22 @@ if [ -z "${PROJECT_NAME:-}" ]; then
     exit 1
 fi
 SONAR_SOURCES="${SONAR_SOURCES:-.}"
-DOCKER_IMG_NAME="${DOCKER_IMG_NAME:-sonarsource/sonar-scanner-cli}"
+DOCKER_IMG_NAME="${DOCKER_IMG_NAME:-openbmc/ubuntu-unit-test:sonarqube}"
 http_proxy=${http_proxy:-}
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Auto-build the Docker image if Dockerfile exists
+if [ -f "${SCRIPT_DIR}/Dockerfile.sonarqube" ]; then
+    echo "Building SonarQube Docker image from Dockerfile.sonarqube..."
+    docker build -f "${SCRIPT_DIR}/Dockerfile.sonarqube" -t "${DOCKER_IMG_NAME}" "${SCRIPT_DIR}"
+    if [ $? -ne 0 ]; then
+        echo "Warning: Docker build failed, will attempt to use existing image"
+    fi
+else
+    echo "Dockerfile.sonarqube not found, using existing Docker image: ${DOCKER_IMG_NAME}"
+fi
 
 # Check workspace exists
 if [ ! -d "${WORKSPACE}" ]; then
@@ -129,10 +143,10 @@ echo "${SONAR_CMD}"
 # shellcheck disable=SC2086 # ${PROXY_ENV} and ${CERT_MOUNT} are meant to be split
 docker run --rm=true \
     ${PROXY_ENV} \
-    -e SONAR_HOST_URL="${SONARQUBE_URL}" \
-    -e SONAR_TOKEN="${SONARQUBE_TOKEN}" \
-    -v "${WORKSPACE}:/usr/src" \
+    -w "${WORKSPACE}" \
+    -v "${WORKSPACE}:${WORKSPACE}" \
     ${CERT_MOUNT} \
+    -e "SONAR_SCANNER_OPTS=-Xmx2048m" \
     "${DOCKER_IMG_NAME}" \
     ${SONAR_CMD}
 
