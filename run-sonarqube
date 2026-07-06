@@ -81,12 +81,16 @@ if [ ! -d "${WORKSPACE}" ]; then
 fi
 
 # Build sonar-scanner command
+# Disable command tracing to prevent token leakage in logs
+set +x
 SONAR_CMD="sonar-scanner"
 SONAR_CMD="${SONAR_CMD} -Dsonar.projectKey=${PROJECT_KEY}"
 SONAR_CMD="${SONAR_CMD} -Dsonar.projectName=\"${PROJECT_NAME}\""
 SONAR_CMD="${SONAR_CMD} -Dsonar.sources=${SONAR_SOURCES}"
 SONAR_CMD="${SONAR_CMD} -Dsonar.host.url=${SONARQUBE_URL}"
 SONAR_CMD="${SONAR_CMD} -Dsonar.token=${SONARQUBE_TOKEN}"
+# Re-enable command tracing after token is safely stored
+set -x
 
 # Add PR-specific parameters if provided
 if [ -n "${GIT_PULL_NUMBER:-}" ]; then
@@ -113,7 +117,10 @@ if [ -n "${CERT_PATH:-}" ]; then
     SONAR_CMD="${SONAR_CMD} -Dsonar.scanner.truststorePath=/usr/src/castorevpcprod"
     
     if [ -n "${CERT_PASSWORD:-}" ]; then
+        # Disable tracing to prevent certificate password from being logged
+        set +x
         SONAR_CMD="${SONAR_CMD} -Dsonar.scanner.truststorePassword=${CERT_PASSWORD}"
+        set -x
     fi
 fi
 
@@ -136,8 +143,8 @@ fi
 # the env to allow the home mount to work (no impact on non-podman systems)
 export PODMAN_USERNS="keep-id"
 
-echo "Running SonarQube scan with command:"
-echo "${SONAR_CMD}"
+# Running SonarQube scan (command not echoed to prevent token leakage)
+echo "Running SonarQube scan..."
 
 # Run the docker container with sonar-scanner
 # shellcheck disable=SC2086 # ${PROXY_ENV} and ${CERT_MOUNT} are meant to be split
