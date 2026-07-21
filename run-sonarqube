@@ -5,6 +5,61 @@
 # This script will use a docker container with SonarQube scanner pre-installed
 # to scan the repository code and send results to the SonarQube server.
 #
+# Repositories scanned:
+#   github.com/openbmc:
+#     openbmc/openbmc:master,1120 (disabled)
+#
+#   github.com/ibm-openbmc:
+#     ibm-openbmc/bmc-pairing-manager:master,1120,1210
+#     ibm-openbmc/bmcweb:master,1120,1210
+#     ibm-openbmc/concurrent-maintenance:master,1120,1210
+#     ibm-openbmc/dbus-sensors:master,1120,1210
+#     ibm-openbmc/entity-manager:master,1120,1210
+#     ibm-openbmc/guard:master,1120,1210
+#     ibm-openbmc/ibm-acf:master,1120,1210
+#     ibm-openbmc/ibm-panel:master,1120,1210
+#     ibm-openbmc/libpldm:master,1120,1210
+#     ibm-openbmc/obmc-console:master,1120,1210
+#     ibm-openbmc/openpower-hw-diags:master,1120,1210
+#     ibm-openbmc/openpower-hw-isolation:master,1120,1210
+#     ibm-openbmc/openpower-occ-control:master,1120,1210
+#     ibm-openbmc/openpower-pnor-code-mgmt:master,1120,1210
+#     ibm-openbmc/openpower-vpd-parser:master,1120,1210
+#     ibm-openbmc/pam-ipmi:master,1120,1210
+#     ibm-openbmc/pdbg:master,1120,1210
+#     ibm-openbmc/phosphor-bmc-code-mgmt:master,1120,1210
+#     ibm-openbmc/phosphor-certificate-manager:master,1120,1210
+#     ibm-openbmc/phosphor-data-sync:main
+#     ibm-openbmc/phosphor-dbus-interfaces:master,1120,1210
+#     ibm-openbmc/phosphor-host-ipmid:master,1120,1210
+#     ibm-openbmc/phosphor-hwmon:master,1120,1210
+#     ibm-openbmc/phosphor-inventory-manager:master,1120,1210
+#     ibm-openbmc/phosphor-led-manager:master,1120,1210
+#     ibm-openbmc/phosphor-logging:master,1120,1210
+#     ibm-openbmc/phosphor-net-ipmid:master,1120,1210
+#     ibm-openbmc/phosphor-networkd:master,1120,1210
+#     ibm-openbmc/phosphor-pid-control:master,1120,1210
+#     ibm-openbmc/phosphor-post-code-manager:master,1120,1210
+#     ibm-openbmc/phosphor-power:master,1120,1210
+#     ibm-openbmc/phosphor-state-manager:master,1120,1210
+#     ibm-openbmc/phosphor-user-manager:master,1120,1210
+#     ibm-openbmc/phosphor-webui:master,1120,1210
+#     ibm-openbmc/pldm:master,1120,1210
+#     ibm-openbmc/service-config-manager:master,1120,1210
+#     ibm-openbmc/telemetry:master,1120,1210
+#     ibm-openbmc/webui-vue:master,1120,1210
+#
+#   github.ibm.com/openbmc:
+#     openbmc/bmcweb:1020,1110-ghe
+#     openbmc/ibm-power-highend-platform-apps:main
+#     openbmc/openpower-host-ipmi-flash:master
+#     openbmc/openpower-hw-diags:main-pst
+#     openbmc/openpower-libhei:main-pst
+#     openbmc/openpower-proc-control:master,1020,1120-ghe,1210-ghe
+#
+#   github.ibm.com/open-power:
+#     open-power/sbe:main-p11
+#
 # Required Parameters:
 #   WORKSPACE:           Location of repository code to scan
 #   SONARQUBE_URL:       URL of the SonarQube server
