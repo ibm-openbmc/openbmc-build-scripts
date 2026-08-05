@@ -27,6 +27,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import threading
 import urllib.request
 from datetime import date
@@ -50,6 +51,18 @@ except ImportError:
     except Exception:
         print("No docker or podman found on system")
         exit(1)
+
+# Podman (via buildah) supports RUN --mount=type=secret natively.
+# Docker requires the buildx plugin for BuildKit.
+_is_podman = os.path.basename(os.path.realpath(str(container))) == "podman"
+if _is_podman:
+    buildkit_available = True
+else:
+    try:
+        container.buildx("version", _out=None, _err=None)
+        buildkit_available = True
+    except Exception:
+        buildkit_available = False
 
 try:
     # Python before 3.8 doesn't have TypedDict, so reroute to standard 'dict'.
@@ -457,10 +470,38 @@ FROM {docker_base_img_name}
         Package.lock.release()
 
         # Do the build / save any exceptions.
+        # When the Dockerfile uses a secret mount (github.ibm.com packages),
+        # write the token to a temp file and pass it as a secret.
+        # The temp file is deleted immediately after the build returns.
+        github_ibm_token = os.environ.get("GITHUB_IBM_TOKEN", "")
+        secret_tmpfile = None
+        secret_args: list = []
+        extra_env: dict = {}
+        if github_ibm_token and "github_ibm_token" in dockerfile and buildkit_available:
+            secret_tmpfile = tempfile.NamedTemporaryFile(
+                mode="w",
+                delete=False,
+                suffix=".secret",
+                dir=os.path.expanduser("~"),
+            )
+            # Restrict to owner read/write only (0600) before writing the token.
+            os.chmod(secret_tmpfile.name, 0o600)
+            secret_tmpfile.write(github_ibm_token)
+            secret_tmpfile.flush()
+            secret_args = [
+                "--secret",
+                f"id=github_ibm_token,src={secret_tmpfile.name}",
+            ]
+            # Only needed for Docker; harmless if passed to Podman.
+            extra_env = {"DOCKER_BUILDKIT": "1"}
+
         try:
-            Docker.build(self.package, tag, dockerfile)
+            Docker.build(self.package, tag, dockerfile, secret_args, extra_env)
         except Exception as e:
             self.exception = e
+        finally:
+            if secret_tmpfile:
+                os.unlink(secret_tmpfile.name)
 
     @classmethod
     def generate_all(cls) -> None:
@@ -579,9 +620,11 @@ FROM {docker_base_img_name}
             self.pkg_def["rev"] = gerrit_rev
             return
 
-        git_url = f"https://github.com/{self.package}"
-        if self.package == "hostfw-src":
-            git_url = "git@github.ibm.com:open-power/hostfw-src.git"
+        token = os.environ.get("GITHUB_IBM_TOKEN", "")
+        if self.package == "hostfw-src" and token:
+            git_url = f"https://{token}@github.ibm.com/open-power/hostfw-src.git"
+        else:
+            git_url = f"https://github.com/{self.package}"
 
         # Ask Github for all the branches.
         try:
@@ -644,6 +687,14 @@ FROM {docker_base_img_name}
             )
 
         if "github.ibm.com" in url and os.environ.get("GITHUB_IBM_TOKEN", ""):
+            if not buildkit_available:
+                raise RuntimeError(
+                    f"Package {self.package} requires downloading from "
+                    "github.ibm.com with a secret token, but this Docker "
+                    "installation does not support BuildKit "
+                    "(docker buildx is missing). "
+                    "Install buildx: https://docs.docker.com/go/buildx/"
+                )
             # Use a BuildKit secret mount so the token is never written into
             # any image layer or printed to the build log.  The secret value
             # is read inside the container at build time and is not present in
@@ -789,7 +840,13 @@ class Docker:
         return result
 
     @staticmethod
-    def build(pkg: str, tag: str, dockerfile: str) -> None:
+    def build(
+        pkg: str,
+        tag: str,
+        dockerfile: str,
+        secret_args: Optional[list] = None,
+        extra_env: Optional[dict] = None,
+    ) -> None:
         """Build a docker image using the Dockerfile and tagging it with 'tag'."""
 
         # If we're not forcing builds, check if it already exists and skip.
@@ -814,22 +871,12 @@ class Docker:
         #       --secret:   Pass GITHUB_IBM_TOKEN as a BuildKit secret so it
         #                   is never written into any layer or printed to the
         #                   build log.
-
-        # When the token is present, use BuildKit so the --mount=type=secret
-        use_buildkit = bool(os.environ.get("GITHUB_IBM_TOKEN", ""))
-        secret_args: list = (
-            ["--secret", "id=github_ibm_token,env=GITHUB_IBM_TOKEN"]
-            if use_buildkit
-            else []
-        )
-        extra_env = {"DOCKER_BUILDKIT": "1"} if use_buildkit else {}
-
         container.build(
             proxy_args,
             "--network=host",
             "--force-rm",
             "--no-cache=true" if force_build else "--no-cache=false",
-            *secret_args,
+            *(secret_args or []),
             "-t",
             tag,
             "-",
@@ -840,7 +887,7 @@ class Docker:
                 )
             ),
             _err_to_out=True,
-            _env={**os.environ, **extra_env},
+            _env={**os.environ, **(extra_env or {})},
         )
 
 
