@@ -22,14 +22,15 @@
 #                     (ex. docker.io)
 #   http_proxy        The HTTP address of the proxy server to connect to.
 #                     Default: "", proxy is not setup if this is not set
-#   IBM_SSH_KEY_FILE: <optional, path to SSH private key with read access to
-#                     github.ibm.com>
-#                     When set, the hostfw-src/phal package is included.
+#   CLONE_HOSTFW_SRC: <optional, set to any non-empty value to include the
+#                     hostfw-src/phal package>
+#                     The build environment must already have SSH access to
+#                     github.ibm.com (e.g. via ~/.ssh/); git will use those
+#                     credentials automatically.
 
 import json
 import os
 import re
-import shlex
 import sys
 import threading
 import urllib.request
@@ -355,44 +356,11 @@ cmake_flags = " ".join(
     ]
 )
 
-# Conditionally add hostfw-src package when IBM_SSH_KEY_FILE points to a
-# readable SSH private key.  The key is passed as a BuildKit secret so it
-# is never written into any image layer or build log.  Without the variable
-# the package is skipped and the build continues normally.
-_ssh_key_file = os.environ.get("IBM_SSH_KEY_FILE", "")
-
-if _ssh_key_file:
-    if not os.path.isfile(_ssh_key_file):
-        print(
-            f"ERROR: IBM_SSH_KEY_FILE '{_ssh_key_file}' does not exist.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    elif not os.access(_ssh_key_file, os.R_OK):
-        print(
-            f"ERROR: IBM_SSH_KEY_FILE '{_ssh_key_file}' is not readable.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    # GIT_SSH_COMMAND used on the host when probing github.ibm.com (ls-remote).
-    _ssh_command_host = (
-        f"ssh -i {shlex.quote(_ssh_key_file)} "
-        "-o StrictHostKeyChecking=accept-new"
-    )
-
-    # Podman (via buildah) supports RUN --mount=type=secret natively.
-    # Docker requires the buildx plugin for BuildKit.
-    _is_podman = os.path.basename(os.path.realpath(str(container))) == "podman"
-    if _is_podman:
-        buildkit_available = True
-    else:
-        try:
-            container.buildx("version", _out=None, _err=None)
-            buildkit_available = True
-        except Exception:
-            buildkit_available = False
-
+# Conditionally add hostfw-src package when CLONE_HOSTFW_SRC is set.
+# The build environment is expected to already have SSH access to
+# github.ibm.com (e.g. via ~/.ssh/); git will use those credentials
+# automatically.
+if os.environ.get("CLONE_HOSTFW_SRC"):
     packages["hostfw-src"] = PackageDef(
         build_type="custom",
         depends=[
@@ -416,7 +384,7 @@ if _ssh_key_file:
         ],
     )
 else:
-    print("Skipping hostfw-src (IBM_SSH_KEY_FILE not configured)", file=sys.stderr)
+    print("Skipping hostfw-src (CLONE_HOSTFW_SRC not set)", file=sys.stderr)
 
 meson_flags = " ".join(
     [
@@ -487,28 +455,8 @@ FROM {docker_base_img_name}
         Package.lock.release()
 
         # Do the build / save any exceptions.
-        # github.ibm.com packages use --mount=type=secret in the RUN step;
-        # BuildKit must be enabled and the key passed via --secret.
-        secret_args: list = []
-        extra_env: dict = {}
-        if "github.ibm.com" in dockerfile:
-            if not buildkit_available:
-                self.exception = RuntimeError(
-                    f"Package {self.package} requires downloading from "
-                    "github.ibm.com with an SSH key secret, but this Docker "
-                    "installation does not support BuildKit "
-                    "(docker buildx is missing). "
-                    "Install buildx: https://docs.docker.com/go/buildx/"
-                )
-                return
-            secret_args = [
-                "--secret",
-                f"id=ibm_ssh_key,src={_ssh_key_file}",
-            ]
-            extra_env = {"DOCKER_BUILDKIT": "1"}
-
         try:
-            Docker.build(self.package, tag, dockerfile, secret_args, extra_env)
+            Docker.build(self.package, tag, dockerfile)
         except Exception as e:
             self.exception = e
 
@@ -635,12 +583,7 @@ FROM {docker_base_img_name}
 
         # Ask Github for all the branches.
         try:
-            git_env = (
-                {**os.environ, "GIT_SSH_COMMAND": _ssh_command_host}
-                if self.package == "hostfw-src"
-                else os.environ
-            )
-            lookup = git("ls-remote", "--heads", git_url, _env=git_env)
+            lookup = git("ls-remote", "--heads", git_url)
         except Exception:
             print(
                 f"Warning: Could not fetch branches for {self.package} from {git_url}",
@@ -684,13 +627,9 @@ FROM {docker_base_img_name}
         """Formulate the command necessary to download and unpack to source."""
 
         if self.package == "hostfw-src":
-            # The SSH private key is supplied as a BuildKit secret (mounted at
-            # /run/secrets/ibm_ssh_key).
             rev = self.pkg_def["rev"]
-            ssh_cmd = "ssh -i /run/secrets/ibm_ssh_key -o StrictHostKeyChecking=accept-new"
             return (
-                f"export GIT_SSH_COMMAND={shlex.quote(ssh_cmd)}"
-                f" && git clone git@github.ibm.com:open-power/hostfw-src.git hostfw-src"
+                f"git clone git@github.ibm.com:open-power/hostfw-src.git hostfw-src"
                 f" && git -C hostfw-src checkout {rev}"
             )
 
@@ -749,10 +688,7 @@ FROM {docker_base_img_name}
         install a package into a Docker stage.
         """
 
-        if self.package == "hostfw-src":
-            run_prefix = "RUN --mount=type=secret,id=ibm_ssh_key"
-        else:
-            run_prefix = "RUN"
+        run_prefix = "RUN"
 
         # Download and extract source.
         result = f"{run_prefix} {self._cmd_download()} && {self._cmd_cd_srcdir()} && "
@@ -853,8 +789,6 @@ class Docker:
         pkg: str,
         tag: str,
         dockerfile: str,
-        secret_args: Optional[list] = None,
-        extra_env: Optional[dict] = None,
     ) -> None:
         """Build a docker image using the Dockerfile and tagging it with 'tag'."""
 
@@ -877,14 +811,11 @@ class Docker:
         #   Other unusual flags:
         #       --no-cache: Bypass the Docker cache if 'force_build'.
         #       --force-rm: Clean up Docker processes if they fail.
-        #       --secret:   Pass IBM_SSH_KEY_FILE as a BuildKit secret so it
-        #                   is never written into any layer or build log.
         container.build(
             proxy_args,
             "--network=host",
             "--force-rm",
             "--no-cache=true" if force_build else "--no-cache=false",
-            *(secret_args or []),
             "-t",
             tag,
             "-",
@@ -895,7 +826,7 @@ class Docker:
                 )
             ),
             _err_to_out=True,
-            _env={**os.environ, **(extra_env or {})},
+            _env=os.environ,
         )
 
 
