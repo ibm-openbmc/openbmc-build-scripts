@@ -633,7 +633,7 @@ FROM {docker_base_img_name}
                 f"Unhandled download type for {self.package}: {url}"
             )
 
-        cmd = f"curl -L {url} | tar -x"
+        cmd = f"curl --fail -L {url} | tar -x"
 
         if url.endswith(".bz2"):
             cmd += "j"
@@ -979,6 +979,7 @@ RUN apt-get update && apt-get dist-upgrade -yy && apt-get install -yy \
     dbus \
     device-tree-compiler \
     doxygen \
+    libfdt-dev \
     flex \
     git \
     glib-2.0 \
