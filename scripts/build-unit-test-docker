@@ -815,14 +815,10 @@ class Docker:
         #                   is never written into any layer or printed to the
         #                   build log.
 
-        # When the token is present, use BuildKit so the --mount=type=secret
-        use_buildkit = bool(os.environ.get("GITHUB_IBM_TOKEN", ""))
-        secret_args: list = (
-            ["--secret", "id=github_ibm_token,env=GITHUB_IBM_TOKEN"]
-            if use_buildkit
-            else []
-        )
-        extra_env = {"DOCKER_BUILDKIT": "1"} if use_buildkit else {}
+        # Collect optional secret args before the build call.
+        secret_args: list = []
+        if os.environ.get("GITHUB_IBM_TOKEN", ""):
+            secret_args = ["--secret", "id=github_ibm_token,env=GITHUB_IBM_TOKEN"]
 
         container.build(
             proxy_args,
@@ -840,7 +836,7 @@ class Docker:
                 )
             ),
             _err_to_out=True,
-            _env={**os.environ, **extra_env},
+            _env={**os.environ, "DOCKER_BUILDKIT": "1"},
         )
 
 
@@ -980,6 +976,7 @@ RUN cat /etc/apt/sources.list.d/debug.list
 
 # Create base Dockerfile.
 dockerfile_base = f"""
+# syntax=docker/dockerfile:1
 FROM {docker_reg}/{distro}
 
 {mirror}
