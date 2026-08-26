@@ -1,0 +1,22 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install basic dependencies and SonarQube Scanner
+RUN apt-get update && apt-get install -y \
+    wget \
+    unzip \
+    ca-certificates \
+    curl \
+    git \
+    openjdk-21-jre-headless \
+    && wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip \
+    && unzip sonar-scanner-cli-5.0.1.3006-linux.zip -d /opt \
+    && ln -s /opt/sonar-scanner-5.0.1.3006-linux/bin/sonar-scanner /usr/local/bin/sonar-scanner \
+    && rm sonar-scanner-cli-5.0.1.3006-linux.zip \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+# Made with Bob
