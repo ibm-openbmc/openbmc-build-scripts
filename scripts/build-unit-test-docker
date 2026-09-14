@@ -950,6 +950,7 @@ RUN apt-get update && apt-get dist-upgrade -yy && apt-get install -yy \
     libjpeg-dev \
     libjson-perl \
     libldap2-dev \
+    liblldpctl-dev \
     libmimetic-dev \
     libmpfr-dev \
     libnl-3-dev \
