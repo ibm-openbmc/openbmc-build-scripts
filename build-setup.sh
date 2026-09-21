@@ -189,6 +189,7 @@ if [[ "${distro}" == fedora ]];then
       gcc \
       gcc-c++ \
       git \
+      git-lfs \
       lz4 \
       make \
       patch \
