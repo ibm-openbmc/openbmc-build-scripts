@@ -21,6 +21,8 @@
 #  ENV_LOCAL_CONF     [optional] The environment variables to inject into the
 #                     build, which will be written into local.conf.
 #                     default is empty.
+#  CONTAINER_ONLY     Set to "true" if you only want to build the docker
+#                     container. The bitbake will not occur in this case.
 #  DOCKER_REG:        <optional, the URL of a docker registry to utilize
 #                     instead of our default (public.ecr.aws/ubuntu)
 #                     (ex. docker.io or public.ecr.aws/docker/library)
@@ -37,7 +39,7 @@
 #                     need to also update DOCKER_REG to a supported fedora reg.
 #                     Default: "ubuntu"
 #  img_name           The name given to the target build's docker image.
-#                     Default: "openbmc/${distro}:${imgtag}-${target}-${ARCH}"
+#                     Default: "openbmc/${distro}:${imgtag}-${target}"
 #  img_tag            The base docker image distro tag:
 #                     ubuntu: latest|16.04|14.04|trusty|xenial
 #                     fedora: 23|24|25
@@ -48,7 +50,7 @@
 #                     Default: "qemuarm"
 #  no_tar             Set to true if you do not want the debug tar built
 #                     Default: "false"
-#  nice_priority      Set nice priotity for bitbake command.
+#  nice_priority      Set nice priority for bitbake command.
 #                     Nice:
 #                       Run with an adjusted niceness, which affects process
 #                       scheduling. Nice values range from -20 (most favorable
@@ -88,6 +90,7 @@ WORKSPACE=${WORKSPACE:-${HOME}/${RANDOM}${RANDOM}}
 num_cpu=${num_cpu:-$(nproc)}
 UBUNTU_MIRROR=${UBUNTU_MIRROR:-"https://mirrors.edge.kernel.org/ubuntu/"}
 ENV_LOCAL_CONF=${ENV_LOCAL_CONF:-""}
+container_only=${CONTAINER_ONLY:-false}
 docker_reg=${DOCKER_REG:-"public.ecr.aws/ubuntu"}
 
 # Docker Image Build Variables:
@@ -134,7 +137,7 @@ fi
 echo "Build started, $(date)"
 
 # If the obmc_dir directory doesn't exist clone it in
-if [ ! -d "${obmc_dir}" ]; then
+if [ ! -d "${obmc_dir}" ] && [ "${container_only}" = false ]; then
     echo "Clone in openbmc master to ${obmc_dir}"
     git clone https://github.com/openbmc/openbmc "${obmc_dir}"
 fi
@@ -246,11 +249,13 @@ elif [[ "${distro}" == ubuntu ]]; then
       git-lfs \
       iputils-ping \
       libdata-dumper-simple-perl \
-      liblz4-tool \
+      lz4 \
       libsdl1.2-dev \
       libthread-queue-any-perl \
       locales \
       python3 \
+      python3-dev \
+      python3-setuptools \
       socat \
       subversion \
       texinfo \
@@ -258,12 +263,20 @@ elif [[ "${distro}" == ubuntu ]]; then
       wget \
       zstd
 
+  # Setup git lfs
+  RUN git lfs install
+
   # Set the locale
   RUN locale-gen en_US.UTF-8
   ENV LANG en_US.UTF-8
   ENV LANGUAGE en_US:en
   ENV LC_ALL en_US.UTF-8
 
+  # Latest Ubuntu added a default user (ubuntu), which takes 1000 UID.
+  # If the user calling this build script happens to also have a UID of 1000
+  # then the container no longer will work. Delete the new ubuntu user
+  # so there is no conflict
+  RUN if id ubuntu > /dev/null 2>&1; then userdel -r ubuntu > /dev/null 2>&1; fi
   RUN grep -q ${GROUPS[0]} /etc/group || groupadd -g ${GROUPS[0]} ${USER}
   RUN grep -q ${UID} /etc/passwd || useradd -d ${HOME} -m -u ${UID} -g ${GROUPS[0]} ${USER}
 
@@ -394,7 +407,7 @@ EOF_SCRIPT
 chmod a+x "${WORKSPACE}/build.sh"
 
 # Give the Docker image a name based on the distro,tag,arch,and target
-img_name=${img_name:-openbmc/${distro}:${img_tag}-${target}-${ARCH}}
+img_name=${img_name:-openbmc/${distro}:${img_tag}-${target}}
 
 # Ensure appropriate docker build output to see progress and identify
 # any issues
@@ -402,6 +415,10 @@ export BUILDKIT_PROGRESS=plain
 
 # Build the Docker image
 docker build --network=host -t "${img_name}" - <<< "${Dockerfile}"
+
+if [[ "$container_only" = "true" ]]; then
+    exit 0
+fi
 
 # If obmc_dir or ssc_dir are ${HOME} or a subdirectory they will not be mounted
 mount_obmc_dir="-v ""${obmc_dir}"":""${obmc_dir}"" "
