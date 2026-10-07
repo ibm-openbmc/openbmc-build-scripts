@@ -238,6 +238,16 @@ def check_call_cmd(*cmd, **kwargs):
     check_call(cmd, **kwargs)
 
 
+# Packages that should be cloned from somewhere other than gerrit.openbmc.org.
+# Each entry maps from package name -> (url, default_branch).
+DOWNSTREAM_PKGS = {
+    "openpower-libhei": (
+        "git@github.ibm.com:openbmc/openpower-libhei.git",
+        "main-pst",
+    ),
+}
+
+
 def clone_pkg(pkg, branch):
     """
     Clone the given openbmc package's git repository from gerrit into
@@ -250,7 +260,11 @@ def clone_pkg(pkg, branch):
     pkg_dir = os.path.join(WORKSPACE, pkg)
     if os.path.exists(os.path.join(pkg_dir, ".git")):
         return pkg_dir
-    pkg_repo = urljoin("https://gerrit.openbmc.org/openbmc/", pkg)
+    if pkg in DOWNSTREAM_PKGS:
+        pkg_repo, default_branch = DOWNSTREAM_PKGS[pkg]
+    else:
+        pkg_repo = urljoin("https://gerrit.openbmc.org/openbmc/", pkg)
+        default_branch = "master"
     os.mkdir(pkg_dir)
     printline(pkg_dir, "> git clone", pkg_repo, branch, "./")
     try:
@@ -258,8 +272,8 @@ def clone_pkg(pkg, branch):
         clone = Repo.clone_from(pkg_repo, pkg_dir, branch=branch)
         repo_inst = clone.working_dir
     except Exception:
-        printline("Input branch not found, default to master")
-        clone = Repo.clone_from(pkg_repo, pkg_dir, branch="master")
+        printline("Input branch not found, default to ", default_branch)
+        clone = Repo.clone_from(pkg_repo, pkg_dir, branch=default_branch)
         repo_inst = clone.working_dir
     return repo_inst
 
