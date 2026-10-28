@@ -596,17 +596,31 @@ FROM {docker_base_img_name}
             "ls-remote", "--heads", f"https://github.com/{self.package}"
         )
 
-        # Find the branch matching {branch} (or fallback to master).
+        # Build the list of branches to try in priority order:
+        #   1. The full branch name (e.g. "1210-wrynose")
+        #   2. The numeric prefix before the first "-" if the branch contains
+        #      one (e.g. "1210"), so downstream rebases are handled gracefully.
+        #   3. master / main as a final fallback.
+        branch_candidates = [branch]
+        if "-" in branch:
+            branch_candidates.append(branch.split("-")[0])
+
+        # Find the branch matching a candidate (or fallback to master/main).
         #   This section is locked because we are modifying the PackageDef.
         Package.lock.acquire()
-        for line in lookup.split("\n"):
-            if re.fullmatch(f".*{branch}$", line.strip()):
-                self.pkg_def["rev"] = line.split()[0]
+        lines = lookup.split("\n")
+        for candidate in branch_candidates:
+            for line in lines:
+                if re.fullmatch(f".*{candidate}$", line.strip()):
+                    self.pkg_def["rev"] = line.split()[0]
+                    break
+            if "rev" in self.pkg_def:
                 break
-            elif (
-                "refs/heads/master" in line or "refs/heads/main" in line
-            ) and "rev" not in self.pkg_def:
-                self.pkg_def["rev"] = line.split()[0]
+        if "rev" not in self.pkg_def:
+            for line in lines:
+                if "refs/heads/master" in line or "refs/heads/main" in line:
+                    self.pkg_def["rev"] = line.split()[0]
+                    break
         Package.lock.release()
 
     def _stagename(self) -> str:

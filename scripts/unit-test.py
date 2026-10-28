@@ -270,15 +270,26 @@ def clone_pkg(pkg, branch):
         default_branch = "master"
     os.mkdir(pkg_dir)
     printline(pkg_dir, "> git clone", pkg_repo, branch, "./")
-    try:
-        # first try the branch
-        clone = Repo.clone_from(pkg_repo, pkg_dir, branch=branch)
-        repo_inst = clone.working_dir
-    except GitCommandError:
-        printline("Input branch not found, default to ", default_branch)
-        clone = Repo.clone_from(pkg_repo, pkg_dir, branch=default_branch)
-        repo_inst = clone.working_dir
-    return repo_inst
+
+    # Build the list of branches to try in priority order:
+    #   1. The full branch name (e.g. "1210-wrynose")
+    #   2. The numeric prefix before the first "-" if the branch contains
+    #      one (e.g. "1210"), so downstream rebases are handled gracefully.
+    #   3. The package-specific (or default) master branch as a final fallback.
+    branch_candidates = [branch]
+    if "-" in branch:
+        branch_candidates.append(branch.split("-")[0])
+
+    for candidate in branch_candidates:
+        try:
+            clone = Repo.clone_from(pkg_repo, pkg_dir, branch=candidate)
+            return clone.working_dir
+        except GitCommandError:
+            printline("Branch not found:", candidate)
+
+    printline("No candidate branch found, defaulting to", default_branch)
+    clone = Repo.clone_from(pkg_repo, pkg_dir, branch=default_branch)
+    return clone.working_dir
 
 
 def make_target_exists(target):
